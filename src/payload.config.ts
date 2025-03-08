@@ -6,16 +6,27 @@ import path from 'path'
 import { buildConfig, PayloadRequest } from 'payload'
 import { fileURLToPath } from 'url'
 
+// Import collections
 import { Categories } from './collections/Categories'
 import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
 import { Posts } from './collections/Posts'
 import { Users } from './collections/Users'
+import { Tags } from './collections/Tags'
+import { Tickers } from './collections/Tickers'
+import { Charts } from './collections/Charts'
+import { Trades } from './collections/Trades'
 import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { plugins } from './plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
+import { lexicalEditor } from '@payloadcms/richtext-lexical'; // Claude add
 import { getServerSideURL } from './utilities/getURL'
+
+
+// Import admin customizations
+//import { createStatsPage } from './admin/stats'; 
+
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -29,6 +40,13 @@ export default buildConfig({
       // The `BeforeDashboard` component renders the 'welcome' block that you see after logging into your admin panel.
       // Feel free to delete this at any time. Simply remove the line below and the import `BeforeDashboard` statement on line 15.
       beforeDashboard: ['@/components/BeforeDashboard'],
+      // Add our custom stats navigation link
+      afterNavLinks: ['@/components/StatsNavLink'],
+      // Add custom admin components - Claude addition
+      /* views: {
+        Statistics: createStatsPage(),
+      }, 
+      css: path.resolve(__dirname, 'admin/scss/custom.scss'), */
     },
     importMap: {
       baseDir: path.resolve(dirname),
@@ -64,18 +82,30 @@ export default buildConfig({
       connectionString: process.env.DATABASE_URI || '',
     },
   }),
-  collections: [Pages, Posts, Media, Categories, Users],
+  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades],
   cors: [getServerSideURL()].filter(Boolean),
   globals: [Header, Footer],
+  /*meta: {
+    titleSuffix: '- Koblich Chronicles',
+    favicon: '/assets/favicon.ico',
+    ogImage: '/assets/og-image.jpg',
+  }, Claude addition */ 
   plugins: [
     ...plugins,
-    // storage-adapter-placeholder
+    //storage-adapter-placeholder
   ],
   secret: process.env.PAYLOAD_SECRET,
   sharp,
   typescript: {
-    outputFile: path.resolve(dirname, 'payload-types.ts'),
+    outputFile: path.resolve(dirname, 'payload-types.ts')
   },
+  graphQL: {
+    schemaOutputFile: path.resolve(dirname, 'generated-schema.graphql'),
+  },
+  csrf: [
+    // Add your frontend URL here
+    process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
+  ],
   jobs: {
     access: {
       run: ({ req }: { req: PayloadRequest }): boolean => {

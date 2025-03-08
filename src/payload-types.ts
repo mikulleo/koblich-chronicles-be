@@ -6,16 +6,75 @@
  * and re-run `payload generate:types` to regenerate this file.
  */
 
+/**
+ * Supported timezones in IANA format.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "supportedTimezones".
+ */
+export type SupportedTimezones =
+  | 'Pacific/Midway'
+  | 'Pacific/Niue'
+  | 'Pacific/Honolulu'
+  | 'Pacific/Rarotonga'
+  | 'America/Anchorage'
+  | 'Pacific/Gambier'
+  | 'America/Los_Angeles'
+  | 'America/Tijuana'
+  | 'America/Denver'
+  | 'America/Phoenix'
+  | 'America/Chicago'
+  | 'America/Guatemala'
+  | 'America/New_York'
+  | 'America/Bogota'
+  | 'America/Caracas'
+  | 'America/Santiago'
+  | 'America/Buenos_Aires'
+  | 'America/Sao_Paulo'
+  | 'Atlantic/South_Georgia'
+  | 'Atlantic/Azores'
+  | 'Atlantic/Cape_Verde'
+  | 'Europe/London'
+  | 'Europe/Berlin'
+  | 'Africa/Lagos'
+  | 'Europe/Athens'
+  | 'Africa/Cairo'
+  | 'Europe/Moscow'
+  | 'Asia/Riyadh'
+  | 'Asia/Dubai'
+  | 'Asia/Baku'
+  | 'Asia/Karachi'
+  | 'Asia/Tashkent'
+  | 'Asia/Calcutta'
+  | 'Asia/Dhaka'
+  | 'Asia/Almaty'
+  | 'Asia/Jakarta'
+  | 'Asia/Bangkok'
+  | 'Asia/Shanghai'
+  | 'Asia/Singapore'
+  | 'Asia/Tokyo'
+  | 'Asia/Seoul'
+  | 'Australia/Sydney'
+  | 'Pacific/Guam'
+  | 'Pacific/Noumea'
+  | 'Pacific/Auckland'
+  | 'Pacific/Fiji';
+
 export interface Config {
   auth: {
     users: UserAuthOperations;
   };
+  blocks: {};
   collections: {
     pages: Page;
     posts: Post;
     media: Media;
     categories: Category;
     users: User;
+    tags: Tag;
+    tickers: Ticker;
+    charts: Chart;
+    trades: Trade;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -32,6 +91,10 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    tags: TagsSelect<false> | TagsSelect<true>;
+    tickers: TickersSelect<false> | TickersSelect<true>;
+    charts: ChartsSelect<false> | ChartsSelect<true>;
+    trades: TradesSelect<false> | TradesSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -42,7 +105,7 @@ export interface Config {
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
   };
   db: {
-    defaultIDType: string;
+    defaultIDType: number;
   };
   globals: {
     header: Header;
@@ -90,7 +153,7 @@ export interface UserAuthOperations {
  * via the `definition` "pages".
  */
 export interface Page {
-  id: string;
+  id: number;
   title: string;
   hero: {
     type: 'none' | 'highImpact' | 'mediumImpact' | 'lowImpact';
@@ -117,11 +180,11 @@ export interface Page {
             reference?:
               | ({
                   relationTo: 'pages';
-                  value: string | Page;
+                  value: number | Page;
                 } | null)
               | ({
                   relationTo: 'posts';
-                  value: string | Post;
+                  value: number | Post;
                 } | null);
             url?: string | null;
             label: string;
@@ -133,7 +196,7 @@ export interface Page {
           id?: string | null;
         }[]
       | null;
-    media?: (string | null) | Media;
+    media?: (number | null) | Media;
   };
   layout: (CallToActionBlock | ContentBlock | MediaBlock | ArchiveBlock | FormBlock)[];
   meta?: {
@@ -141,7 +204,7 @@ export interface Page {
     /**
      * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
      */
-    image?: (string | null) | Media;
+    image?: (number | null) | Media;
     description?: string | null;
   };
   publishedAt?: string | null;
@@ -156,9 +219,9 @@ export interface Page {
  * via the `definition` "posts".
  */
 export interface Post {
-  id: string;
+  id: number;
   title: string;
-  heroImage?: (string | null) | Media;
+  heroImage?: (number | null) | Media;
   content: {
     root: {
       type: string;
@@ -174,18 +237,18 @@ export interface Post {
     };
     [k: string]: unknown;
   };
-  relatedPosts?: (string | Post)[] | null;
-  categories?: (string | Category)[] | null;
+  relatedPosts?: (number | Post)[] | null;
+  categories?: (number | Category)[] | null;
   meta?: {
     title?: string | null;
     /**
      * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
      */
-    image?: (string | null) | Media;
+    image?: (number | null) | Media;
     description?: string | null;
   };
   publishedAt?: string | null;
-  authors?: (string | User)[] | null;
+  authors?: (number | User)[] | null;
   populatedAuthors?:
     | {
         id?: string | null;
@@ -203,7 +266,7 @@ export interface Post {
  * via the `definition` "media".
  */
 export interface Media {
-  id: string;
+  id: number;
   alt?: string | null;
   caption?: {
     root: {
@@ -220,6 +283,10 @@ export interface Media {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * When was this image captured (if different from upload date)
+   */
+  sourceDate?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -288,6 +355,22 @@ export interface Media {
       filesize?: number | null;
       filename?: string | null;
     };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    full?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
   };
 }
 /**
@@ -295,14 +378,14 @@ export interface Media {
  * via the `definition` "categories".
  */
 export interface Category {
-  id: string;
+  id: number;
   title: string;
   slug?: string | null;
   slugLock?: boolean | null;
-  parent?: (string | null) | Category;
+  parent?: (number | null) | Category;
   breadcrumbs?:
     | {
-        doc?: (string | null) | Category;
+        doc?: (number | null) | Category;
         url?: string | null;
         label?: string | null;
         id?: string | null;
@@ -316,8 +399,13 @@ export interface Category {
  * via the `definition` "users".
  */
 export interface User {
-  id: string;
+  id: number;
   name?: string | null;
+  roles: ('admin' | 'user')[];
+  preferences?: {
+    defaultTimeframe?: ('all' | 'year' | 'month' | 'week' | 'last30') | null;
+    defaultChartView?: ('grid' | 'list' | 'timeline') | null;
+  };
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -357,11 +445,11 @@ export interface CallToActionBlock {
           reference?:
             | ({
                 relationTo: 'pages';
-                value: string | Page;
+                value: number | Page;
               } | null)
             | ({
                 relationTo: 'posts';
-                value: string | Post;
+                value: number | Post;
               } | null);
           url?: string | null;
           label: string;
@@ -407,11 +495,11 @@ export interface ContentBlock {
           reference?:
             | ({
                 relationTo: 'pages';
-                value: string | Page;
+                value: number | Page;
               } | null)
             | ({
                 relationTo: 'posts';
-                value: string | Post;
+                value: number | Post;
               } | null);
           url?: string | null;
           label: string;
@@ -432,7 +520,7 @@ export interface ContentBlock {
  * via the `definition` "MediaBlock".
  */
 export interface MediaBlock {
-  media: string | Media;
+  media: number | Media;
   id?: string | null;
   blockName?: string | null;
   blockType: 'mediaBlock';
@@ -459,12 +547,12 @@ export interface ArchiveBlock {
   } | null;
   populateBy?: ('collection' | 'selection') | null;
   relationTo?: 'posts' | null;
-  categories?: (string | Category)[] | null;
+  categories?: (number | Category)[] | null;
   limit?: number | null;
   selectedDocs?:
     | {
         relationTo: 'posts';
-        value: string | Post;
+        value: number | Post;
       }[]
     | null;
   id?: string | null;
@@ -476,7 +564,7 @@ export interface ArchiveBlock {
  * via the `definition` "FormBlock".
  */
 export interface FormBlock {
-  form: string | Form;
+  form: number | Form;
   enableIntro?: boolean | null;
   introContent?: {
     root: {
@@ -502,7 +590,7 @@ export interface FormBlock {
  * via the `definition` "forms".
  */
 export interface Form {
-  id: string;
+  id: number;
   title: string;
   fields?:
     | (
@@ -672,10 +760,232 @@ export interface Form {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tags".
+ */
+export interface Tag {
+  id: number;
+  name: string;
+  description?: string | null;
+  color: '#FF5252' | '#4CAF50' | '#2196F3' | '#FFEB3B' | '#9C27B0' | '#FF9800' | '#009688' | '#E91E63' | '#9E9E9E';
+  /**
+   * Number of charts using this tag
+   */
+  chartsCount?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tickers".
+ */
+export interface Ticker {
+  id: number;
+  /**
+   * Stock ticker symbol (e.g., AAPL)
+   */
+  symbol: string;
+  /**
+   * Full company name (e.g., Apple Inc.)
+   */
+  name: string;
+  /**
+   * Brief description of the company
+   */
+  description?: string | null;
+  /**
+   * Industry sector (e.g., Technology)
+   */
+  sector?: string | null;
+  /**
+   * Tags associated with this ticker across all charts
+   */
+  tags?: (number | Tag)[] | null;
+  /**
+   * Number of chart entries for this ticker
+   */
+  chartsCount?: number | null;
+  /**
+   * Number of trades for this ticker
+   */
+  tradesCount?: number | null;
+  /**
+   * Total profit/loss for this ticker
+   */
+  profitLoss?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "charts".
+ */
+export interface Chart {
+  id: number;
+  /**
+   * Upload a stock chart screenshot
+   */
+  image: number | Media;
+  /**
+   * Select the ticker symbol for this chart
+   */
+  ticker: number | Ticker;
+  /**
+   * When was this chart captured
+   */
+  timestamp: string;
+  /**
+   * Notes about this chart pattern or observation
+   */
+  notes?: string | null;
+  /**
+   * Tags for categorizing this chart
+   */
+  tags?: (number | Tag)[] | null;
+  /**
+   * Saved annotations (for future use)
+   */
+  annotations?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Price measurements and calculations
+   */
+  measurements?:
+    | {
+        /**
+         * Name of this measurement (e.g., "Pullback", "Breakout")
+         */
+        name: string;
+        /**
+         * Starting price point
+         */
+        startPrice: number;
+        /**
+         * Ending price point
+         */
+        endPrice: number;
+        /**
+         * Calculated percentage change
+         */
+        percentageChange?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Annotated version of this chart (if available)
+   */
+  annotatedImage?: (number | null) | Media;
+  keyboardNavId?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "trades".
+ */
+export interface Trade {
+  id: number;
+  /**
+   * Select the ticker symbol for this trade
+   */
+  ticker: number | Ticker;
+  type: 'long' | 'short';
+  /**
+   * Date of trade entry
+   */
+  entryDate: string;
+  /**
+   * Price at entry
+   */
+  entryPrice: number;
+  /**
+   * Number of shares/contracts
+   */
+  shares: number;
+  /**
+   * Initial stop loss price
+   */
+  initialStopLoss: number;
+  /**
+   * Track changes to stop loss
+   */
+  modifiedStops?:
+    | {
+        price: number;
+        date: string;
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Exit details (partial or full)
+   */
+  exits?:
+    | {
+        /**
+         * Exit price
+         */
+        price: number;
+        /**
+         * Number of shares/contracts exited
+         */
+        shares: number;
+        /**
+         * Date of exit
+         */
+        date: string;
+        reason?: ('target' | 'stop' | 'technical' | 'fundamental' | 'other') | null;
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Trade status
+   */
+  status: 'open' | 'closed' | 'partial';
+  /**
+   * Trade notes and rationale
+   */
+  notes?: string | null;
+  /**
+   * Calculated risk amount ($)
+   */
+  riskAmount?: number | null;
+  /**
+   * Calculated risk percentage
+   */
+  riskPercent?: number | null;
+  /**
+   * Profit/Loss Amount ($)
+   */
+  profitLossAmount?: number | null;
+  /**
+   * Profit/Loss Percentage
+   */
+  profitLossPercent?: number | null;
+  /**
+   * R-Multiple (gain/loss relative to initial risk)
+   */
+  rRatio?: number | null;
+  /**
+   * Days position has been/was held
+   */
+  daysHeld?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
 export interface Redirect {
-  id: string;
+  id: number;
   /**
    * You will need to rebuild the website when changing this field.
    */
@@ -685,11 +995,11 @@ export interface Redirect {
     reference?:
       | ({
           relationTo: 'pages';
-          value: string | Page;
+          value: number | Page;
         } | null)
       | ({
           relationTo: 'posts';
-          value: string | Post;
+          value: number | Post;
         } | null);
     url?: string | null;
   };
@@ -701,8 +1011,8 @@ export interface Redirect {
  * via the `definition` "form-submissions".
  */
 export interface FormSubmission {
-  id: string;
-  form: string | Form;
+  id: number;
+  form: number | Form;
   submissionData?:
     | {
         field: string;
@@ -720,18 +1030,18 @@ export interface FormSubmission {
  * via the `definition` "search".
  */
 export interface Search {
-  id: string;
+  id: number;
   title?: string | null;
   priority?: number | null;
   doc: {
     relationTo: 'posts';
-    value: string | Post;
+    value: number | Post;
   };
   slug?: string | null;
   meta?: {
     title?: string | null;
     description?: string | null;
-    image?: (string | null) | Media;
+    image?: (number | null) | Media;
   };
   categories?:
     | {
@@ -748,7 +1058,7 @@ export interface Search {
  * via the `definition` "payload-jobs".
  */
 export interface PayloadJob {
-  id: string;
+  id: number;
   /**
    * Input data provided to the job
    */
@@ -840,52 +1150,68 @@ export interface PayloadJob {
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: string;
+  id: number;
   document?:
     | ({
         relationTo: 'pages';
-        value: string | Page;
+        value: number | Page;
       } | null)
     | ({
         relationTo: 'posts';
-        value: string | Post;
+        value: number | Post;
       } | null)
     | ({
         relationTo: 'media';
-        value: string | Media;
+        value: number | Media;
       } | null)
     | ({
         relationTo: 'categories';
-        value: string | Category;
+        value: number | Category;
       } | null)
     | ({
         relationTo: 'users';
-        value: string | User;
+        value: number | User;
+      } | null)
+    | ({
+        relationTo: 'tags';
+        value: number | Tag;
+      } | null)
+    | ({
+        relationTo: 'tickers';
+        value: number | Ticker;
+      } | null)
+    | ({
+        relationTo: 'charts';
+        value: number | Chart;
+      } | null)
+    | ({
+        relationTo: 'trades';
+        value: number | Trade;
       } | null)
     | ({
         relationTo: 'redirects';
-        value: string | Redirect;
+        value: number | Redirect;
       } | null)
     | ({
         relationTo: 'forms';
-        value: string | Form;
+        value: number | Form;
       } | null)
     | ({
         relationTo: 'form-submissions';
-        value: string | FormSubmission;
+        value: number | FormSubmission;
       } | null)
     | ({
         relationTo: 'search';
-        value: string | Search;
+        value: number | Search;
       } | null)
     | ({
         relationTo: 'payload-jobs';
-        value: string | PayloadJob;
+        value: number | PayloadJob;
       } | null);
   globalSlug?: string | null;
   user: {
     relationTo: 'users';
-    value: string | User;
+    value: number | User;
   };
   updatedAt: string;
   createdAt: string;
@@ -895,10 +1221,10 @@ export interface PayloadLockedDocument {
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: string;
+  id: number;
   user: {
     relationTo: 'users';
-    value: string | User;
+    value: number | User;
   };
   key?: string | null;
   value?:
@@ -918,7 +1244,7 @@ export interface PayloadPreference {
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: string;
+  id: number;
   name?: string | null;
   batch?: number | null;
   updatedAt: string;
@@ -1097,6 +1423,7 @@ export interface PostsSelect<T extends boolean = true> {
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
   caption?: T;
+  sourceDate?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -1181,6 +1508,26 @@ export interface MediaSelect<T extends boolean = true> {
               filesize?: T;
               filename?: T;
             };
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        full?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
       };
 }
 /**
@@ -1209,6 +1556,13 @@ export interface CategoriesSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  roles?: T;
+  preferences?:
+    | T
+    | {
+        defaultTimeframe?: T;
+        defaultChartView?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1218,6 +1572,99 @@ export interface UsersSelect<T extends boolean = true> {
   hash?: T;
   loginAttempts?: T;
   lockUntil?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tags_select".
+ */
+export interface TagsSelect<T extends boolean = true> {
+  name?: T;
+  description?: T;
+  color?: T;
+  chartsCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tickers_select".
+ */
+export interface TickersSelect<T extends boolean = true> {
+  symbol?: T;
+  name?: T;
+  description?: T;
+  sector?: T;
+  tags?: T;
+  chartsCount?: T;
+  tradesCount?: T;
+  profitLoss?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "charts_select".
+ */
+export interface ChartsSelect<T extends boolean = true> {
+  image?: T;
+  ticker?: T;
+  timestamp?: T;
+  notes?: T;
+  tags?: T;
+  annotations?: T;
+  measurements?:
+    | T
+    | {
+        name?: T;
+        startPrice?: T;
+        endPrice?: T;
+        percentageChange?: T;
+        id?: T;
+      };
+  annotatedImage?: T;
+  keyboardNavId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "trades_select".
+ */
+export interface TradesSelect<T extends boolean = true> {
+  ticker?: T;
+  type?: T;
+  entryDate?: T;
+  entryPrice?: T;
+  shares?: T;
+  initialStopLoss?: T;
+  modifiedStops?:
+    | T
+    | {
+        price?: T;
+        date?: T;
+        notes?: T;
+        id?: T;
+      };
+  exits?:
+    | T
+    | {
+        price?: T;
+        shares?: T;
+        date?: T;
+        reason?: T;
+        notes?: T;
+        id?: T;
+      };
+  status?: T;
+  notes?: T;
+  riskAmount?: T;
+  riskPercent?: T;
+  profitLossAmount?: T;
+  profitLossPercent?: T;
+  rRatio?: T;
+  daysHeld?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1477,7 +1924,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
  * via the `definition` "header".
  */
 export interface Header {
-  id: string;
+  id: number;
   navItems?:
     | {
         link: {
@@ -1486,11 +1933,11 @@ export interface Header {
           reference?:
             | ({
                 relationTo: 'pages';
-                value: string | Page;
+                value: number | Page;
               } | null)
             | ({
                 relationTo: 'posts';
-                value: string | Post;
+                value: number | Post;
               } | null);
           url?: string | null;
           label: string;
@@ -1506,7 +1953,7 @@ export interface Header {
  * via the `definition` "footer".
  */
 export interface Footer {
-  id: string;
+  id: number;
   navItems?:
     | {
         link: {
@@ -1515,11 +1962,11 @@ export interface Footer {
           reference?:
             | ({
                 relationTo: 'pages';
-                value: string | Page;
+                value: number | Page;
               } | null)
             | ({
                 relationTo: 'posts';
-                value: string | Post;
+                value: number | Post;
               } | null);
           url?: string | null;
           label: string;
@@ -1587,14 +2034,14 @@ export interface TaskSchedulePublish {
     doc?:
       | ({
           relationTo: 'pages';
-          value: string | Page;
+          value: number | Page;
         } | null)
       | ({
           relationTo: 'posts';
-          value: string | Post;
+          value: number | Post;
         } | null);
     global?: string | null;
-    user?: (string | null) | User;
+    user?: (number | null) | User;
   };
   output?: unknown;
 }

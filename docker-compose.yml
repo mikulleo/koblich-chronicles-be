@@ -8,24 +8,42 @@ services:
     volumes:
       - .:/home/node/app
       - node_modules:/home/node/app/node_modules
+      - ./media:/home/node/app/media
     working_dir: /home/node/app/
-    command: sh -c "yarn install && yarn dev"
+    command: sh -c "npm install && npm run dev"
     depends_on:
-      - mongo
+      - postgres
     env_file:
       - .env
+    networks:
+      - app_network
 
-  mongo:
-    image: mongo:latest
-    ports:
-      - '27017:27017'
-    command:
-      - --storageEngine=wiredTiger
+  postgres:
+    image: postgres:15-alpine
+    container_name: koblich_chronicles_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PAYLOAD_DB_USER}
+      POSTGRES_PASSWORD: ${PAYLOAD_DB_PASSWORD}
+      POSTGRES_DB: ${PAYLOAD_DB_NAME}
+      PGDATA: /data/postgres
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --data-checksums'
     volumes:
-      - data:/data/db
-    logging:
-      driver: none
+      - postgres_data:/data/postgres
+    ports:
+      - "${PAYLOAD_DB_PORT}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PAYLOAD_DB_USER} -d ${PAYLOAD_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
 
 volumes:
-  data:
+  postgres_data:
   node_modules:
+
+networks:
+  app_network:
+    driver: bridge

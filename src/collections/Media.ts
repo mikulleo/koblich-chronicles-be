@@ -37,12 +37,24 @@ export const Media: CollectionConfig = {
         },
       }),
     },
+    {
+      name: 'sourceDate',
+      type: 'date',
+      label: 'Source Date',
+      admin: {
+        description: 'When was this image captured (if different from upload date)',
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+      },
+    }
   ],
   upload: {
     // Upload to the public/media directory in Next.js making them publicly accessible even outside of Payload
     staticDir: path.resolve(dirname, '../../public/media'),
     adminThumbnail: 'thumbnail',
     focalPoint: true,
+    mimeTypes: ['image/*', 'application/pdf'], 
     imageSizes: [
       {
         name: 'thumbnail',
@@ -74,6 +86,18 @@ export const Media: CollectionConfig = {
         width: 1200,
         height: 630,
         crop: 'center',
+      },
+      {
+        name: 'card',
+        width: 640,
+        height: 480,
+        position: 'centre',
+      },
+      {
+        name: 'full',
+        width: 1920,
+        height: 1080,
+        position: 'centre',
       },
     ],
   },

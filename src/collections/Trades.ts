@@ -1,6 +1,8 @@
 import { CollectionConfig, PayloadRequest } from 'payload';
 import { calculateTradeMetricsHook } from '../hooks/calculateTradeMetrics';
 import { updateTickerTradeStatsHook } from '../hooks/updateTickerTradeStats';
+import { calculateCurrentMetricsHook } from '@/hooks/calculateCurrentMetrics';
+import { calculateNormalizedMetricsHook } from '@/hooks/calculateNormalizedMetrics';
 import dayjs from 'dayjs';
 
 // Define interfaces for type safety
@@ -10,6 +12,67 @@ interface ExitRecord {
   date: string | Date;
   reason?: string;
   notes?: string;
+}
+
+// Add this interface at the top of your file
+interface TradeForStats {
+  id?: string | number;
+  profitLossAmount: number;
+  profitLossPercent: number;
+  rRatio?: number;
+  daysHeld?: number;
+  entryPrice: number;
+  shares: number;
+  status: 'open' | 'partial' | 'closed';
+  normalizedMetrics?: {
+    profitLossAmount: number;
+    profitLossPercent: number;
+    rRatio?: number;
+  };
+  normalizationFactor?: number;
+  positionSize: number;
+}
+
+interface NormalizedStats {
+  totalProfitLoss: number;
+  totalProfitLossPercent: number;
+  averageRRatio: number;
+  profitFactor: number;
+  maxGainPercent: number;
+  maxLossPercent: number;
+  maxGainLossRatio: number;
+  averageWinPercent: number;
+  averageLossPercent: number;
+  winLossRatio: number;
+  adjustedWinLossRatio: number;
+  expectancy: number;
+}
+
+interface TradeStats {
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  breakEvenTrades: number;
+  battingAverage: number;
+  averageWinPercent: number;
+  averageLossPercent: number;
+  winLossRatio: number;
+  adjustedWinLossRatio: number;
+  averageRRatio: number;
+  profitFactor: number;
+  expectancy: number;
+  averageDaysHeldWinners: number;
+  averageDaysHeldLosers: number;
+  maxGainPercent: number;
+  maxLossPercent: number;
+  maxGainLossRatio: number;
+  totalProfitLoss: number;
+  totalProfitLossPercent: number;
+  tradeStatusCounts: {
+    closed: number;
+    partial: number;
+  };
+  normalized: NormalizedStats;
 }
 
 export const Trades: CollectionConfig = {
@@ -113,6 +176,94 @@ export const Trades: CollectionConfig = {
         },
       ],
     },
+    // current price Type Group
+    {
+      name: 'currentPrice',
+      type: 'number',
+      admin: {
+        description: 'Current market price for open or partially closed positions',
+        position: 'sidebar',
+        step: 0.01,
+        condition: (data) => data.status !== 'closed',
+      },
+    },
+    {
+      name: 'currentMetrics',
+      type: 'group',
+      admin: {
+        description: 'Real-time metrics for open positions',
+        position: 'sidebar',
+        condition: (data) => data.status !== 'closed',
+      },
+      fields: [
+        {
+          name: 'profitLossAmount',
+          label: 'Current P/L ($)',
+          type: 'number',
+          admin: {
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+        {
+          name: 'profitLossPercent',
+          label: 'Current P/L (%)',
+          type: 'number',
+          admin: {
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+        {
+          name: 'rRatio',
+          label: 'Current R-Ratio',
+          type: 'number',
+          admin: {
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+        {
+          name: 'riskAmount',
+          label: 'Current Risk Amount ($)',
+          type: 'number',
+          admin: {
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+        {
+          name: 'riskPercent',
+          label: 'Current Risk (%)',
+          type: 'number',
+          admin: {
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+        {
+          name: 'breakEvenShares',
+          label: 'Break-even Shares',
+          type: 'number',
+          admin: {
+            description: 'Shares to sell at current price to break even if stopped out',
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+        {
+          name: 'lastUpdated',
+          label: 'Last Updated',
+          type: 'date',
+          admin: {
+            readOnly: true,
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
+          },
+        }
+      ],
+    },
     {
       name: 'exits',
       type: 'array',
@@ -211,6 +362,7 @@ export const Trades: CollectionConfig = {
         description: 'Trade notes and rationale',
       },
     },
+    
     // Calculated fields
     {
       name: 'riskAmount',
@@ -297,10 +449,122 @@ export const Trades: CollectionConfig = {
         ],
       },
     },
+    {
+      name: 'positionSize',
+      type: 'number',
+      admin: {
+        description: 'Actual position size in dollars (entry price × shares)',
+        position: 'sidebar',
+        readOnly: true,
+      },
+      hooks: {
+        beforeChange: [
+          ({ siblingData }) => {
+            if (siblingData.entryPrice && siblingData.shares) {
+              const entryPrice = parseFloat(siblingData.entryPrice);
+              const shares = parseFloat(siblingData.shares);
+              
+              if (!isNaN(entryPrice) && !isNaN(shares)) {
+                return parseFloat((entryPrice * shares).toFixed(2));
+              }
+            }
+            return siblingData.positionSize;
+          }
+        ],
+      },
+    },
+    {
+      name: 'targetPositionSize',
+      type: 'number',
+      admin: {
+        description: 'Target position size at time of trade entry',
+        position: 'sidebar',
+      },
+      hooks: {
+        beforeChange: [
+          async ({ value, operation, req }) => {
+            // Only set the target position size on trade creation, not on updates
+            if (operation === 'create') {
+              // Get user's current target position size preference
+              let defaultTarget = 25000; // Default value
+              
+              if (req.user && req.user.id) {
+                try {
+                  const user = await req.payload.findByID({
+                    collection: 'users',
+                    id: req.user.id,
+                  });
+                  
+                  if (user?.preferences?.targetPositionSize) {
+                    defaultTarget = user.preferences.targetPositionSize;
+                  }
+                } catch (error) {
+                  console.error('Error fetching user preferences:', error);
+                }
+              }
+              
+              // Return user's target position size or the provided value if it exists
+              return value || defaultTarget;
+            }
+            
+            // For updates, keep the existing value
+            return value;
+          }
+        ],
+      },
+    },
+    {
+      name: 'normalizationFactor',
+      type: 'number',
+      admin: {
+        description: 'Position size as percentage of target size',
+        position: 'sidebar',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'normalizedMetrics',
+      type: 'group',
+      admin: {
+        description: 'Metrics normalized to standard position size',
+        position: 'sidebar',
+      },
+      fields: [
+        {
+          name: 'profitLossAmount',
+          label: 'Normalized P/L ($)',
+          type: 'number',
+          admin: {
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+        {
+          name: 'profitLossPercent',
+          label: 'Normalized P/L (%)',
+          type: 'number',
+          admin: {
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+        {
+          name: 'rRatio',
+          label: 'Normalized R-Ratio',
+          type: 'number',
+          admin: {
+            readOnly: true,
+            step: 0.01,
+          },
+        },
+      ],
+    },
   ],
   hooks: {
     beforeChange: [
       calculateTradeMetricsHook,
+      calculateCurrentMetricsHook,
+      calculateNormalizedMetricsHook,
     ],
     afterChange: [
       updateTickerTradeStatsHook,
@@ -315,13 +579,22 @@ export const Trades: CollectionConfig = {
           const startDate = req.query?.startDate as string | undefined;
           const endDate = req.query?.endDate as string | undefined;
           const tickerId = req.query?.tickerId as string | undefined;
+          const statusFilter = req.query?.statusFilter as string | undefined; // 'closed', 'partial', or 'all'
           
           // Build the query
-          const query: Record<string, any> = {
-            status: {
+          const query: Record<string, any> = {};
+
+          // Set status filter based on the statusFilter parameter
+          if (statusFilter === 'closed-only') {
+            query.status = {
+              equals: 'closed',
+            };
+          } else {
+            // Default: include both closed and partially closed trades
+            query.status = {
               in: ['closed', 'partial'],
-            },
-          };
+            };
+          }
           
           // Add date filters if provided
           if (startDate) {
@@ -350,8 +623,16 @@ export const Trades: CollectionConfig = {
           
           // Calculate statistics
           const stats = calculateTradeStats(trades.docs);
+
+          // Add metadata about the filter used
+          const metadata = {
+            totalTrades: trades.totalDocs,
+            statusFilter: statusFilter === 'closed-only' ? 'Closed Only' : 'Closed and Partial',
+            dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All Time',
+            tickerFilter: tickerId ? true : false
+          };
           
-          return Response.json(stats);
+          return Response.json({stats, metadata});
         } catch (error) {
           console.error('Error calculating trade stats:', error);
           return Response.json({ message: 'Error calculating trade statistics' }, { status: 500 });
@@ -362,9 +643,15 @@ export const Trades: CollectionConfig = {
 };
 
 // Helper function to calculate trade statistics
-function calculateTradeStats(trades: any[]) {
+// Helper function to calculate trade statistics with weighted normalization
+function calculateTradeStats(trades: any[]): TradeStats {
+  // Initialize arrays for standard and normalized data
+  const winners: any[] = [];
+  const losers: any[] = [];
+  const breakEven: any[] = [];
+  
   // Initialize statistics
-  const stats = {
+  const stats: TradeStats = {
     totalTrades: trades.length,
     winningTrades: 0,
     losingTrades: 0,
@@ -373,6 +660,7 @@ function calculateTradeStats(trades: any[]) {
     averageWinPercent: 0,
     averageLossPercent: 0,
     winLossRatio: 0,
+    adjustedWinLossRatio: 0,
     averageRRatio: 0,
     profitFactor: 0,
     expectancy: 0,
@@ -383,17 +671,42 @@ function calculateTradeStats(trades: any[]) {
     maxGainLossRatio: 0,
     totalProfitLoss: 0,
     totalProfitLossPercent: 0,
+    tradeStatusCounts: {
+      closed: trades.filter(t => t.status === 'closed').length,
+      partial: trades.filter(t => t.status === 'partial').length
+    },
+    normalized: {
+      totalProfitLoss: 0,
+      totalProfitLossPercent: 0,
+      averageRRatio: 0,
+      profitFactor: 0,
+      maxGainPercent: 0,
+      maxLossPercent: 0,
+      maxGainLossRatio: 0,
+      averageWinPercent: 0,
+      averageLossPercent: 0,
+      winLossRatio: 0,
+      adjustedWinLossRatio: 0,
+      expectancy: 0,
+    }
   };
   
   if (trades.length === 0) {
     return stats;
   }
   
-  // Calculate winning/losing trades
-  const winners = trades.filter(trade => trade.profitLossPercent > 0);
-  const losers = trades.filter(trade => trade.profitLossPercent < 0);
-  const breakEven = trades.filter(trade => trade.profitLossPercent === 0);
+  // Separate winners and losers
+  trades.forEach(trade => {
+    if (trade.profitLossPercent > 0) {
+      winners.push(trade);
+    } else if (trade.profitLossPercent < 0) {
+      losers.push(trade);
+    } else {
+      breakEven.push(trade);
+    }
+  });
   
+  // Standard metrics calculations
   stats.winningTrades = winners.length;
   stats.losingTrades = losers.length;
   stats.breakEvenTrades = breakEven.length;
@@ -415,6 +728,13 @@ function calculateTradeStats(trades: any[]) {
     ? Math.abs(stats.averageWinPercent / stats.averageLossPercent)
     : 0;
   
+  // Calculate adjusted win/loss ratio
+  if (stats.averageLossPercent !== 0 && stats.battingAverage < 100) {
+    const winRate = stats.battingAverage / 100;
+    stats.adjustedWinLossRatio = (winRate * stats.averageWinPercent) / 
+      ((1 - winRate) * Math.abs(stats.averageLossPercent));
+  }
+  
   // Calculate average R-ratio
   stats.averageRRatio = trades.reduce((sum, trade) => sum + (trade.rRatio || 0), 0) / trades.length;
   
@@ -425,15 +745,15 @@ function calculateTradeStats(trades: any[]) {
   
   // Calculate expectancy
   stats.expectancy = (stats.battingAverage / 100 * stats.averageWinPercent) + 
-                     ((1 - stats.battingAverage / 100) * stats.averageLossPercent);
+                    ((1 - stats.battingAverage / 100) * stats.averageLossPercent);
   
   // Calculate average days held
   stats.averageDaysHeldWinners = winners.length
-    ? winners.reduce((sum, trade) => sum + trade.daysHeld, 0) / winners.length
+    ? winners.reduce((sum, trade) => sum + (trade.daysHeld || 0), 0) / winners.length
     : 0;
     
   stats.averageDaysHeldLosers = losers.length
-    ? losers.reduce((sum, trade) => sum + trade.daysHeld, 0) / losers.length
+    ? losers.reduce((sum, trade) => sum + (trade.daysHeld || 0), 0) / losers.length
     : 0;
   
   // Calculate max gain/loss
@@ -460,6 +780,134 @@ function calculateTradeStats(trades: any[]) {
   stats.totalProfitLossPercent = totalInvested !== 0
     ? (stats.totalProfitLoss / totalInvested) * 100
     : 0;
+  
+  // Calculate normalized statistics
+  const normalizedTrades = trades.filter(trade => trade.normalizedMetrics);
+  console.log("normalizedTrades", normalizedTrades);
+
+  if (normalizedTrades.length > 0) {
+    // For normalized stats we need to use weighted averages based on position size
+    const normalizedWinners = normalizedTrades.filter(t => t.normalizedMetrics.profitLossPercent > 0);
+    const normalizedLosers = normalizedTrades.filter(t => t.normalizedMetrics.profitLossPercent < 0);
+    
+    // -------------------- WEIGHTED CALCULATIONS FOR NORMALIZED METRICS --------------------
+    
+    // Calculate total normalized P/L amount
+    stats.normalized.totalProfitLoss = normalizedTrades.reduce((sum, trade) => 
+      sum + (trade.normalizedMetrics.profitLossAmount || 0), 0);
+    
+    // Calculate estimated total normalized investment
+    const normalizedInvestment = normalizedTrades.reduce((sum, trade) => {
+      const factor = trade.normalizationFactor || 1;
+      return factor > 0 ? sum + (trade.positionSize / factor) : sum;
+    }, 0);
+    
+    stats.normalized.totalProfitLossPercent = normalizedInvestment !== 0
+      ? (stats.normalized.totalProfitLoss / normalizedInvestment) * 100
+      : 0;
+    
+    // --------------- WEIGHTED METRICS FOR WINNERS ---------------
+    if (normalizedWinners.length > 0) {
+      // For normalized win percentage, use weighted average based on normalization factor
+      let totalWinnerWeight = 0;
+      let weightedWinSum = 0;
+      let maxNormalizedGain = 0;
+      
+      // Calculate weighted sum and find max gain
+      normalizedWinners.forEach(trade => {
+        const weight = trade.normalizationFactor || 1;
+        totalWinnerWeight += weight;
+        weightedWinSum += (trade.normalizedMetrics.profitLossPercent * weight);
+        
+        // Find maximum normalized gain
+        if (trade.normalizedMetrics.profitLossPercent > maxNormalizedGain) {
+          maxNormalizedGain = trade.normalizedMetrics.profitLossPercent;
+        }
+      });
+      
+      // Weighted average win percentage
+      stats.normalized.averageWinPercent = totalWinnerWeight > 0
+        ? weightedWinSum / totalWinnerWeight
+        : 0;
+      
+      stats.normalized.maxGainPercent = maxNormalizedGain;
+    }
+    
+    // --------------- WEIGHTED METRICS FOR LOSERS ---------------
+    if (normalizedLosers.length > 0) {
+      // For normalized loss percentage, use weighted average based on normalization factor
+      let totalLoserWeight = 0;
+      let weightedLossSum = 0;
+      let minNormalizedLoss = 0;
+      
+      // Calculate weighted sum and find max loss
+      normalizedLosers.forEach(trade => {
+        const weight = trade.normalizationFactor || 1;
+        totalLoserWeight += weight;
+        weightedLossSum += (trade.normalizedMetrics.profitLossPercent * weight);
+        
+        // Find minimum normalized loss (most negative value)
+        if (trade.normalizedMetrics.profitLossPercent < minNormalizedLoss) {
+          minNormalizedLoss = trade.normalizedMetrics.profitLossPercent;
+        }
+      });
+      
+      // Weighted average loss percentage
+      stats.normalized.averageLossPercent = totalLoserWeight > 0
+        ? weightedLossSum / totalLoserWeight
+        : 0;
+      
+      stats.normalized.maxLossPercent = minNormalizedLoss;
+    }
+    
+    // Calculate normalized win/loss ratio
+    stats.normalized.winLossRatio = stats.normalized.averageLossPercent !== 0
+      ? Math.abs(stats.normalized.averageWinPercent / stats.normalized.averageLossPercent)
+      : 0;
+    
+    // Calculate normalized adjusted win/loss ratio
+    if (stats.normalized.averageLossPercent !== 0 && stats.battingAverage < 100) {
+      const winRate = stats.battingAverage / 100;
+      stats.normalized.adjustedWinLossRatio = (winRate * stats.normalized.averageWinPercent) /
+        ((1 - winRate) * Math.abs(stats.normalized.averageLossPercent));
+    }
+    
+    // Calculate normalized max gain/loss ratio
+    stats.normalized.maxGainLossRatio = stats.normalized.maxLossPercent !== 0
+      ? Math.abs(stats.normalized.maxGainPercent / stats.normalized.maxLossPercent)
+      : 0;
+    
+    // Calculate normalized average R-ratio (weighted)
+    let totalRRatioWeight = 0;
+    let weightedRRatioSum = 0;
+    
+    normalizedTrades.forEach(trade => {
+      if (trade.normalizedMetrics.rRatio !== undefined) {
+        const weight = trade.normalizationFactor || 1;
+        totalRRatioWeight += weight;
+        weightedRRatioSum += (trade.normalizedMetrics.rRatio * weight);
+      }
+    });
+    
+    stats.normalized.averageRRatio = totalRRatioWeight > 0
+      ? weightedRRatioSum / totalRRatioWeight
+      : 0;
+    
+    // Calculate normalized profit factor
+    const normalizedGrossWins = normalizedWinners.reduce((sum, trade) => 
+      sum + trade.normalizedMetrics.profitLossAmount, 0);
+      
+    const normalizedGrossLosses = Math.abs(normalizedLosers.reduce((sum, trade) => 
+      sum + trade.normalizedMetrics.profitLossAmount, 0));
+      
+    stats.normalized.profitFactor = normalizedGrossLosses !== 0 
+      ? normalizedGrossWins / normalizedGrossLosses 
+      : 0;
+    
+    // Calculate normalized expectancy
+    stats.normalized.expectancy = (stats.battingAverage / 100 * stats.normalized.averageWinPercent) +
+      ((1 - stats.battingAverage / 100) * stats.normalized.averageLossPercent);
+  }
   
   return stats;
 }

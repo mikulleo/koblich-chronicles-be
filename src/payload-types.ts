@@ -405,6 +405,10 @@ export interface User {
   preferences?: {
     defaultTimeframe?: ('all' | 'year' | 'month' | 'week' | 'last30') | null;
     defaultChartView?: ('grid' | 'list' | 'timeline') | null;
+    /**
+     * Your standard position size in dollars (100% allocation)
+     */
+    targetPositionSize?: number | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -924,6 +928,25 @@ export interface Trade {
       }[]
     | null;
   /**
+   * Current market price for open or partially closed positions
+   */
+  currentPrice?: number | null;
+  /**
+   * Real-time metrics for open positions
+   */
+  currentMetrics?: {
+    profitLossAmount?: number | null;
+    profitLossPercent?: number | null;
+    rRatio?: number | null;
+    riskAmount?: number | null;
+    riskPercent?: number | null;
+    /**
+     * Shares to sell at current price to break even if stopped out
+     */
+    breakEvenShares?: number | null;
+    lastUpdated?: string | null;
+  };
+  /**
    * Exit details (partial or full)
    */
   exits?:
@@ -977,6 +1000,26 @@ export interface Trade {
    * Days position has been/was held
    */
   daysHeld?: number | null;
+  /**
+   * Actual position size in dollars (entry price × shares)
+   */
+  positionSize?: number | null;
+  /**
+   * Target position size at time of trade entry
+   */
+  targetPositionSize?: number | null;
+  /**
+   * Position size as percentage of target size
+   */
+  normalizationFactor?: number | null;
+  /**
+   * Metrics normalized to standard position size
+   */
+  normalizedMetrics?: {
+    profitLossAmount?: number | null;
+    profitLossPercent?: number | null;
+    rRatio?: number | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1562,6 +1605,7 @@ export interface UsersSelect<T extends boolean = true> {
     | {
         defaultTimeframe?: T;
         defaultChartView?: T;
+        targetPositionSize?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1645,6 +1689,18 @@ export interface TradesSelect<T extends boolean = true> {
         notes?: T;
         id?: T;
       };
+  currentPrice?: T;
+  currentMetrics?:
+    | T
+    | {
+        profitLossAmount?: T;
+        profitLossPercent?: T;
+        rRatio?: T;
+        riskAmount?: T;
+        riskPercent?: T;
+        breakEvenShares?: T;
+        lastUpdated?: T;
+      };
   exits?:
     | T
     | {
@@ -1663,6 +1719,16 @@ export interface TradesSelect<T extends boolean = true> {
   profitLossPercent?: T;
   rRatio?: T;
   daysHeld?: T;
+  positionSize?: T;
+  targetPositionSize?: T;
+  normalizationFactor?: T;
+  normalizedMetrics?:
+    | T
+    | {
+        profitLossAmount?: T;
+        profitLossPercent?: T;
+        rRatio?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

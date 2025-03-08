@@ -66,6 +66,16 @@ export const Users: CollectionConfig = {
           ],
           defaultValue: 'grid',
         },
+        {
+          name: 'targetPositionSize',
+          label: 'Target Position Size ($)',
+          type: 'number',
+          defaultValue: 25000,
+          admin: {
+            description: 'Your standard position size in dollars (100% allocation)',
+            step: 1000,
+          },
+        }
       ],
     },
   ],

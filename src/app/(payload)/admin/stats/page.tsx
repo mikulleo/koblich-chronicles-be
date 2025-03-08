@@ -3,12 +3,29 @@
 import React, { useState, useEffect } from 'react';
 import { useConfig } from '@payloadcms/ui';
 import dayjs from 'dayjs';
+import OpenPositions from '@/components/OpenPositions';
+import TargetPositionSettings from './TargetPositionSettings';
 
 // Define interfaces for type safety
 interface Ticker {
   id: string | number;
   symbol: string;
   name: string;
+}
+
+interface NormalizedStats {
+  totalProfitLoss: number;
+  totalProfitLossPercent: number;
+  averageRRatio: number;
+  profitFactor: number;
+  maxGainPercent: number;
+  maxLossPercent: number;
+  maxGainLossRatio: number;
+  averageWinPercent: number;
+  averageLossPercent: number;
+  winLossRatio: number;
+  adjustedWinLossRatio: number;
+  expectancy: number;
 }
 
 interface TradeStats {
@@ -20,6 +37,7 @@ interface TradeStats {
   averageWinPercent: number;
   averageLossPercent: number;
   winLossRatio: number;
+  adjustedWinLossRatio: number;
   averageRRatio: number;
   profitFactor: number;
   expectancy: number;
@@ -30,7 +48,14 @@ interface TradeStats {
   maxGainLossRatio: number;
   totalProfitLoss: number;
   totalProfitLossPercent: number;
+  tradeStatusCounts?: {
+    closed: number;
+    partial: number;
+  };
+  normalized?: NormalizedStats;
 }
+
+type ViewMode = 'standard' | 'normalized' | 'side-by-side';
 
 export default function StatsPage() {
   const [loading, setLoading] = useState(true);
@@ -40,6 +65,8 @@ export default function StatsPage() {
   const [endDate, setEndDate] = useState('');
   const [selectedTicker, setSelectedTicker] = useState('all');
   const [tickers, setTickers] = useState<Ticker[]>([]);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('standard'); // Add view mode
   
   const config = useConfig();
   // Get the base URL for API requests
@@ -103,9 +130,18 @@ export default function StatsPage() {
           url += `&tickerId=${selectedTicker}`;
         }
         
+        if (statusFilter === 'closed-only') {
+          url += `&statusFilter=closed-only`;
+        }
+        
         const response = await fetch(url);
         const data = await response.json();
-        setStats(data as TradeStats);
+        
+        if (data.stats) {
+          setStats(data.stats as TradeStats);
+        } else {
+          setStats(data as TradeStats);
+        }
       } catch (error) {
         console.error('Error fetching stats:', error);
       } finally {
@@ -116,7 +152,25 @@ export default function StatsPage() {
     if (startDate && endDate) {
       fetchStats();
     }
-  }, [baseUrl, startDate, endDate, selectedTicker]);
+  }, [baseUrl, startDate, endDate, selectedTicker, statusFilter]);
+  
+  // Helper function to get value based on view mode
+  const getValueForViewMode = (standardValue: any, normalizedValue: any) => {
+    if (viewMode === 'normalized' && normalizedValue !== undefined) {
+      return normalizedValue;
+    }
+    if (viewMode === 'side-by-side') {
+      return (
+        <div>
+          <span>{standardValue !== undefined ? standardValue : '-'}</span>
+          {normalizedValue !== undefined && (
+            <span className="normalized-value">({normalizedValue})</span>
+          )}
+        </div>
+      );
+    }
+    return standardValue;
+  };
   
   // Simple spinner component as fallback
   const SimpleSpinner = () => (
@@ -135,7 +189,12 @@ export default function StatsPage() {
   
   return (
     <div className="stats-page">
+      <div className="settings-row">
+        <TargetPositionSettings />
+      </div>
       <h1>Trading Statistics</h1>
+      
+      <OpenPositions />
       
       <div className="stats-controls">
         <div className="controls-row">
@@ -192,8 +251,39 @@ export default function StatsPage() {
               ))}
             </select>
           </div>
+          
+          <div className="control-group">
+            <label htmlFor="status">Trade Status:</label>
+            <select
+              id="status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Closed & Partial</option>
+              <option value="closed-only">Closed Only</option>
+            </select>
+          </div>
+          
+          {/* Add View Mode selector */}
+          <div className="control-group">
+            <label htmlFor="viewMode">View Mode:</label>
+            <select
+              id="viewMode"
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as ViewMode)}
+            >
+              <option value="standard">Standard Metrics</option>
+              <option value="normalized">Normalized Metrics</option>
+              <option value="side-by-side">Side by Side</option>
+            </select>
+          </div>
         </div>
       </div>
+      
+      <h2>Closed Trade Statistics 
+        {viewMode === 'normalized' && ' (Normalized to Target Position Size)'}
+        {viewMode === 'standard' && ' (Actual Position Sizes)'}
+      </h2>
       
       {loading ? (
         <div className="loading-container">
@@ -207,6 +297,12 @@ export default function StatsPage() {
               <div className="stat-card">
                 <h3>Total Trades</h3>
                 <p className="stat-value">{stats.totalTrades}</p>
+                {stats.tradeStatusCounts && (
+                  <p className="stat-detail">
+                    (Closed: {stats.tradeStatusCounts.closed}, 
+                    Partial: {stats.tradeStatusCounts.partial})
+                  </p>
+                )}
               </div>
               <div className="stat-card">
                 <h3>Win Rate</h3>
@@ -214,11 +310,21 @@ export default function StatsPage() {
               </div>
               <div className="stat-card">
                 <h3>Profit Factor</h3>
-                <p className="stat-value">{stats.profitFactor?.toFixed(2)}</p>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    stats.profitFactor?.toFixed(2),
+                    stats.normalized?.profitFactor?.toFixed(2)
+                  )}
+                </p>
               </div>
               <div className="stat-card">
                 <h3>Expectancy</h3>
-                <p className="stat-value">{stats.expectancy?.toFixed(2)}%</p>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    `${stats.expectancy?.toFixed(2)}%`,
+                    stats.normalized?.expectancy ? `${stats.normalized.expectancy.toFixed(2)}%` : undefined
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -236,61 +342,140 @@ export default function StatsPage() {
               </div>
               <div className="stat-card">
                 <h3>Avg. Win</h3>
-                <p className="stat-value">{stats.averageWinPercent?.toFixed(2)}%</p>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    `${stats.averageWinPercent?.toFixed(2)}%`,
+                    stats.normalized?.averageWinPercent ? `${stats.normalized.averageWinPercent.toFixed(2)}%` : undefined
+                  )}
+                </p>
               </div>
               <div className="stat-card">
                 <h3>Avg. Loss</h3>
-                <p className="stat-value">{stats.averageLossPercent?.toFixed(2)}%</p>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    `${stats.averageLossPercent?.toFixed(2)}%`,
+                    stats.normalized?.averageLossPercent ? `${stats.normalized.averageLossPercent.toFixed(2)}%` : undefined
+                  )}
+                </p>
               </div>
               <div className="stat-card">
                 <h3>Max Win</h3>
-                <p className="stat-value">{stats.maxGainPercent?.toFixed(2)}%</p>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    `${stats.maxGainPercent?.toFixed(2)}%`,
+                    stats.normalized?.maxGainPercent ? `${stats.normalized.maxGainPercent.toFixed(2)}%` : undefined
+                  )}
+                </p>
               </div>
               <div className="stat-card">
                 <h3>Max Loss</h3>
-                <p className="stat-value">{stats.maxLossPercent?.toFixed(2)}%</p>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    `${stats.maxLossPercent?.toFixed(2)}%`,
+                    stats.normalized?.maxLossPercent ? `${stats.normalized.maxLossPercent.toFixed(2)}%` : undefined
+                  )}
+                </p>
               </div>
               <div className="stat-card">
                 <h3>Win/Loss Ratio</h3>
-                <p className="stat-value">{stats.winLossRatio?.toFixed(2)}</p>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    stats.winLossRatio?.toFixed(2),
+                    stats.normalized?.winLossRatio?.toFixed(2)
+                  )}
+                </p>
+              </div>
+              <div className="stat-card">
+                <h3>Adjusted W/L Ratio</h3>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    stats.adjustedWinLossRatio?.toFixed(2),
+                    stats.normalized?.adjustedWinLossRatio?.toFixed(2)
+                  )}
+                </p>
               </div>
               <div className="stat-card">
                 <h3>Avg. R-Ratio</h3>
-                <p className="stat-value">{stats.averageRRatio?.toFixed(2)}</p>
+                <p className="stat-value">
+                  {getValueForViewMode(
+                    stats.averageRRatio?.toFixed(2),
+                    stats.normalized?.averageRRatio?.toFixed(2)
+                  )}
+                </p>
               </div>
             </div>
           </div>
           
-          <div className="stats-section">
-            <h2>Time Statistics</h2>
-            <div className="stats-grid">
-              <div className="stat-card">
-                <h3>Avg. Days (Winners)</h3>
-                <p className="stat-value">{stats.averageDaysHeldWinners?.toFixed(1)}</p>
-              </div>
-              <div className="stat-card">
-                <h3>Avg. Days (Losers)</h3>
-                <p className="stat-value">{stats.averageDaysHeldLosers?.toFixed(1)}</p>
+          {/* Only show time statistics for standard view */}
+          {viewMode !== 'normalized' && (
+            <div className="stats-section">
+              <h2>Time Statistics</h2>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <h3>Avg. Days (Winners)</h3>
+                  <p className="stat-value">{stats.averageDaysHeldWinners?.toFixed(1)}</p>
+                </div>
+                <div className="stat-card">
+                  <h3>Avg. Days (Losers)</h3>
+                  <p className="stat-value">{stats.averageDaysHeldLosers?.toFixed(1)}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
           
           <div className="stats-section">
             <h2>Total Results</h2>
             <div className="stats-grid">
               <div className="stat-card total-profit-loss">
                 <h3>Total P/L</h3>
-                <p className={`stat-value ${stats.totalProfitLoss >= 0 ? 'profit' : 'loss'}`}>
-                  ${stats.totalProfitLoss?.toFixed(2)}
+                <p className={`stat-value ${
+                  viewMode === 'normalized' && stats.normalized 
+                    ? stats.normalized.totalProfitLoss >= 0 ? 'profit' : 'loss'
+                    : stats.totalProfitLoss >= 0 ? 'profit' : 'loss'
+                }`}>
+                  {getValueForViewMode(
+                    `$${stats.totalProfitLoss?.toFixed(2)}`,
+                    stats.normalized?.totalProfitLoss ? `$${stats.normalized.totalProfitLoss.toFixed(2)}` : undefined
+                  )}
                 </p>
               </div>
               <div className="stat-card">
                 <h3>Total P/L %</h3>
-                <p className={`stat-value ${stats.totalProfitLossPercent >= 0 ? 'profit' : 'loss'}`}>
-                  {stats.totalProfitLossPercent?.toFixed(2)}%
+                <p className={`stat-value ${
+                  viewMode === 'normalized' && stats.normalized
+                    ? stats.normalized.totalProfitLossPercent >= 0 ? 'profit' : 'loss'
+                    : stats.totalProfitLossPercent >= 0 ? 'profit' : 'loss'
+                }`}>
+                  {getValueForViewMode(
+                    `${stats.totalProfitLossPercent?.toFixed(2)}%`,
+                    stats.normalized?.totalProfitLossPercent ? `${stats.normalized.totalProfitLossPercent.toFixed(2)}%` : undefined
+                  )}
                 </p>
               </div>
             </div>
+          </div>
+          
+          {/* Legend for side-by-side view */}
+          {viewMode === 'side-by-side' && (
+            <div className="filter-info">
+              <p>
+                <strong>Side-by-Side View:</strong> Standard metrics with (Normalized metrics) in parentheses
+              </p>
+            </div>
+          )}
+          
+          {/* Filter information */}
+          <div className="filter-info">
+            <p>
+              <strong>Status Filter:</strong> {statusFilter === 'closed-only' ? 'Closed Trades Only' : 'Closed & Partially Closed Trades'}
+            </p>
+            <p>
+              <strong>View Mode:</strong> {viewMode === 'standard' 
+                ? 'Standard (Actual Position Sizes)' 
+                : viewMode === 'normalized' 
+                  ? 'Normalized to Target Position Size' 
+                  : 'Side by Side Comparison'}
+            </p>
           </div>
         </div>
       ) : (
@@ -304,6 +489,11 @@ export default function StatsPage() {
           padding: 20px;
           max-width: 1200px;
           margin: 0 auto;
+        }
+        
+        .settings-row {
+          margin-top: 10px;
+          margin-bottom: 20px;
         }
         
         .stats-controls {
@@ -355,7 +545,7 @@ export default function StatsPage() {
         }
         
         .stat-card {
-          background-color: #fff;
+          background-color: #000;
           border: 1px solid #e0e0e0;
           border-radius: 5px;
           padding: 15px;
@@ -374,6 +564,20 @@ export default function StatsPage() {
           margin: 0;
         }
         
+        .normalized-value {
+          display: block;
+          font-size: 16px;
+          font-weight: 400;
+          color: #666;
+          margin-top: 5px;
+        }
+        
+        .stat-detail {
+          font-size: 12px;
+          color: #666;
+          margin: 5px 0 0 0;
+        }
+        
         .profit {
           color: #4CAF50;
         }
@@ -390,6 +594,14 @@ export default function StatsPage() {
           text-align: center;
           padding: 50px 0;
           color: #666;
+        }
+        
+        .filter-info {
+          margin-top: 20px;
+          padding: 10px;
+          background-color: #f7f7f7;
+          border-radius: 5px;
+          font-size: 14px;
         }
         
         @keyframes spin {

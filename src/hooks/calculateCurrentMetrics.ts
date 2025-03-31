@@ -27,7 +27,7 @@ export const calculateCurrentMetricsHook: CollectionBeforeChangeHook = ({ data, 
     let realizedPL = 0;
     
     if (data.exits && data.exits.length > 0) {
-      data.exits.forEach(exit => {
+      data.exits.forEach((exit: { shares: string; price: string }) => {
         const exitShares = parseFloat(exit.shares);
         const exitPrice = parseFloat(exit.price);
         

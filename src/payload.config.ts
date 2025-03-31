@@ -83,7 +83,12 @@ export default buildConfig({
     },
   }),
   collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades],
-  cors: [getServerSideURL()].filter(Boolean),
+  cors: [
+    getServerSideURL(),
+    'http://localhost:3001',
+    'https://host.plasmicdev.com',
+    // Add any additional domains you need
+  ].filter(Boolean),
   globals: [Header, Footer],
   /*meta: {
     titleSuffix: '- Koblich Chronicles',

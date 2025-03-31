@@ -1,8 +1,10 @@
+// src/hooks/updateTickerTags.ts
 import { CollectionAfterChangeHook } from 'payload';
 
 // Keep track of which ticker we're currently updating to prevent recursion
 // This is a module-level variable that persists between hook calls
 const updatingTickers = new Set<string | number>();
+const updatingTags = new Set<string | number>();
 
 /**
  * Update the tags associated with a ticker based on charts
@@ -36,7 +38,7 @@ export const updateTickerTagsHook: CollectionAfterChangeHook = async ({ doc, req
     });
     
     // Collect all unique tag IDs
-    const allTagIds: number[] = [];
+    const allTagIds = new Set<number>();
     const tagCountMap: Record<string, number> = {};
     
     // Process each chart to build the tags list and counts
@@ -51,10 +53,8 @@ export const updateTickerTagsHook: CollectionAfterChangeHook = async ({ doc, req
             
             // Only process valid numeric IDs
             if (!isNaN(numericTagId)) {
-              // Add to unique tag list if not already there
-              if (!allTagIds.includes(numericTagId)) {
-                allTagIds.push(numericTagId);
-              }
+              // Add to unique tag set
+              allTagIds.add(numericTagId);
               
               // Update the count for this tag
               const tagKey = String(numericTagId);
@@ -70,23 +70,38 @@ export const updateTickerTagsHook: CollectionAfterChangeHook = async ({ doc, req
       collection: 'tickers',
       id: tickerId,
       data: {
-        tags: allTagIds,
+        tags: Array.from(allTagIds),
       },
+      depth: 0,
     });
     
-    // Update each tag count
-    for (const tagIdStr in tagCountMap) {
+    // Update each tag count - use Promise.all for better performance
+    const updatePromises = Object.entries(tagCountMap).map(async ([tagIdStr, count]) => {
       const tagId = parseInt(tagIdStr, 10);
-      const count = tagCountMap[tagIdStr];
       
-      await req.payload.update({
-        collection: 'tags',
-        id: tagId,
-        data: {
-          chartsCount: count,
-        },
-      });
-    }
+      // Skip if we're already updating this tag
+      if (updatingTags.has(tagId)) {
+        return;
+      }
+      
+      try {
+        updatingTags.add(tagId);
+        
+        await req.payload.update({
+          collection: 'tags',
+          id: tagId,
+          data: {
+            chartsCount: count,
+          },
+          depth: 0,
+        });
+      } finally {
+        updatingTags.delete(tagId);
+      }
+    });
+    
+    // Wait for all tag updates to complete
+    await Promise.all(updatePromises);
     
     // Remove the ticker from our tracking set
     updatingTickers.delete(tickerId);

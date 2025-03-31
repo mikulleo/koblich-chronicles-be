@@ -1,6 +1,7 @@
+// src/collections/Charts.ts
 import { CollectionConfig, PayloadRequest } from 'payload';
-//import { updateTickerTagsHook } from '../hooks/updateTickerTags';
 import { updateTickerStatsHook } from '../hooks/updateTickerStats';
+import { updateTickerTagsHook } from '../hooks/updateTickerTags';
 
 export const Charts: CollectionConfig = {
   slug: 'charts',
@@ -145,25 +146,39 @@ export const Charts: CollectionConfig = {
       },
       hooks: {
         beforeChange: [
-          async () => {
-            // This will be set after save by a separate operation
-            return null;
+          async ({ value }) => {
+            // Keep existing value during update operations
+            return value || null;
           }
         ],
       },
     },
   ],
   hooks: {
+    /*
     afterChange: [
-      //updateTickerTagsHook,
-      updateTickerStatsHook,
+      // Execute hooks sequentially with proper error handling
+      async (args) => {
+        // First, update the ticker stats
+        const docAfterStats = await updateTickerStatsHook(args);
+        
+        // Then update ticker tags - but only if updateTickerTagsHook function exists
+        // This is to handle the case where the function was commented out in the original code
+        if (typeof updateTickerTagsHook === 'function') {
+          return await updateTickerTagsHook({ ...args, doc: docAfterStats });
+        }
+        
+        return docAfterStats;
+      },
+      // Handle keyboard navigation ID as a separate hook
       async ({ doc, operation, req }) => {
         if (operation === 'create') {
-          // Update the keyboardNavId for keyboard navigation
           try {
+            // Update the keyboardNavId for keyboard navigation
             const count = await req.payload.find({
               collection: 'charts',
               limit: 0,
+              depth: 0,
             });
             
             await req.payload.update({
@@ -172,6 +187,7 @@ export const Charts: CollectionConfig = {
               data: {
                 keyboardNavId: count.totalDocs,
               },
+              depth: 0,
             });
           } catch (err) {
             console.error('Error updating keyboardNavId:', err);
@@ -179,7 +195,7 @@ export const Charts: CollectionConfig = {
         }
         return doc;
       },
-    ],
+    ],*/
   },
   endpoints: [
     {
@@ -198,6 +214,7 @@ export const Charts: CollectionConfig = {
           const currentChart = await req.payload.findByID({
             collection: 'charts',
             id,
+            depth: 0, // No need to load relationships
           });
 
           if (!currentChart) {
@@ -222,6 +239,7 @@ export const Charts: CollectionConfig = {
             where: query,
             sort: 'keyboardNavId',
             limit: 1,
+            depth: 1, // Load first-level relationships
           });
 
           if (nextCharts.docs.length > 0) {
@@ -232,6 +250,7 @@ export const Charts: CollectionConfig = {
               collection: 'charts',
               sort: 'keyboardNavId',
               limit: 1,
+              depth: 1, // Load first-level relationships
             });
 
             if (firstCharts.docs.length > 0) {
@@ -262,6 +281,7 @@ export const Charts: CollectionConfig = {
           const currentChart = await req.payload.findByID({
             collection: 'charts',
             id,
+            depth: 0, // No need to load relationships
           });
 
           if (!currentChart) {
@@ -286,6 +306,7 @@ export const Charts: CollectionConfig = {
             where: query,
             sort: '-keyboardNavId',
             limit: 1,
+            depth: 1, // Load first-level relationships
           });
 
           if (prevCharts.docs.length > 0) {
@@ -296,6 +317,7 @@ export const Charts: CollectionConfig = {
               collection: 'charts',
               sort: '-keyboardNavId',
               limit: 1,
+              depth: 1, // Load first-level relationships
             });
 
             if (lastCharts.docs.length > 0) {
@@ -307,6 +329,40 @@ export const Charts: CollectionConfig = {
         } catch (error) {
           console.error('Error fetching previous chart:', error);
           return Response.json({ message: 'Error fetching previous chart' }, { status: 500 });
+        }
+      },
+    },
+    // New endpoint for filtering charts by tag
+    {
+      path: '/by-tag/:tagId',
+      method: 'get',
+      handler: async (req: PayloadRequest) => {
+        try {
+          const tagId = req.routeParams?.tagId;
+          const page = parseInt(req.query?.page as string || '1', 10);
+          const limit = parseInt(req.query?.limit as string || '20', 10);
+
+          if (!tagId) {
+            return Response.json({ message: 'Tag ID is required' }, { status: 400 });
+          }
+
+          const charts = await req.payload.find({
+            collection: 'charts',
+            where: {
+              tags: {
+                contains: tagId,
+              },
+            },
+            page,
+            limit,
+            sort: '-timestamp',
+            depth: 1, // Load first-level relationships
+          });
+
+          return Response.json(charts);
+        } catch (error) {
+          console.error('Error fetching charts by tag:', error);
+          return Response.json({ message: 'Error fetching charts by tag' }, { status: 500 });
         }
       },
     },

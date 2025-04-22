@@ -3,7 +3,7 @@ import { calculateTradeMetricsHook } from '../hooks/calculateTradeMetrics'
 import { updateTickerTradeStatsHook } from '../hooks/updateTickerTradeStats'
 import { calculateCurrentMetricsHook } from '@/hooks/calculateCurrentMetrics'
 import { calculateNormalizedMetricsHook } from '@/hooks/calculateNormalizedMetrics'
-import dayjs from 'dayjs'
+import { Where } from 'payload'
 
 // Define interfaces for type safety
 interface ExitRecord {
@@ -14,7 +14,7 @@ interface ExitRecord {
   notes?: string
 }
 
-// Add this interface at the top of your file
+// Interface for trade statistics
 interface TradeForStats {
   id?: string | number
   profitLossAmount: number
@@ -113,7 +113,7 @@ export const Trades: CollectionConfig = {
       admin: {
         description: 'Date of trade entry',
         date: {
-          pickerAppearance: 'dayAndTime',
+          pickerAppearance: 'dayOnly',
         },
       },
       defaultValue: () => new Date(),
@@ -145,6 +145,49 @@ export const Trades: CollectionConfig = {
       },
     },
     {
+      name: 'relatedCharts',
+      type: 'relationship',
+      relationTo: 'charts',
+      hasMany: true,
+      admin: {
+        description: 'Charts associated with this trade',
+      },
+      // Filter options to only show charts with the same ticker
+      filterOptions: ({ data }) => {
+        // Only apply filter if we have a ticker selected
+        if (data?.ticker) {
+          const tickerId = typeof data.ticker === 'object' ? data.ticker.id : data.ticker
+
+          if (tickerId) {
+            // Return a Where query
+            return {
+              ticker: {
+                equals: tickerId,
+              },
+            } as Where
+          }
+        }
+
+        // Return true to show all options when no ticker is selected
+        return true
+      },
+    },
+    {
+      name: 'setupType',
+      type: 'select',
+      options: [
+        { label: 'Breakout', value: 'breakout' },
+        { label: 'Pullback', value: 'pullback' },
+        { label: 'Reversal', value: 'reversal' },
+        { label: 'Gap', value: 'gap' },
+        { label: 'Other', value: 'other' },
+      ],
+      admin: {
+        description: 'Type of trading setup',
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'modifiedStops',
       type: 'array',
       admin: {
@@ -165,7 +208,7 @@ export const Trades: CollectionConfig = {
           required: true,
           admin: {
             date: {
-              pickerAppearance: 'dayAndTime',
+              pickerAppearance: 'dayOnly',
             },
           },
           defaultValue: () => new Date(),
@@ -583,23 +626,19 @@ export const Trades: CollectionConfig = {
           const tickerId = req.query?.tickerId as string | undefined
           const statusFilter = req.query?.statusFilter as string | undefined
 
-          console.log(`Received request with statusFilter: ${statusFilter}`)
-
           // Build the query
           const query: Record<string, any> = {}
 
-          // FIXED: More explicit handling of the statusFilter parameter
+          // Handle status filter
           if (statusFilter === 'closed-only') {
             query.status = {
               equals: 'closed',
             }
-            console.log('Filtering for closed trades only')
           } else {
             // Default: include both closed and partially closed trades
             query.status = {
               in: ['closed', 'partial'],
             }
-            console.log('Filtering for both closed and partial trades')
           }
 
           // Add date filters if provided
@@ -620,8 +659,6 @@ export const Trades: CollectionConfig = {
             }
           }
 
-          console.log(`Final query: ${JSON.stringify(query)}`)
-
           // Fetch the trades
           const trades = await req.payload.find({
             collection: 'trades',
@@ -632,10 +669,6 @@ export const Trades: CollectionConfig = {
           const closedTradesCount = trades.docs.filter((t) => t.status === 'closed').length
           const partialTradesCount = trades.docs.filter((t) => t.status === 'partial').length
 
-          console.log(
-            `Found ${trades.docs.length} trades (${closedTradesCount} closed, ${partialTradesCount} partial)`,
-          )
-
           // Calculate statistics
           const stats = calculateTradeStats(trades.docs)
 
@@ -645,7 +678,6 @@ export const Trades: CollectionConfig = {
             closedTrades: closedTradesCount,
             partialTrades: partialTradesCount,
             statusFilter: statusFilter === 'closed-only' ? 'Closed Only' : 'Closed and Partial',
-            statusFilterRaw: statusFilter, // Add raw value for debugging
             dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All Time',
             tickerFilter: tickerId ? true : false,
           }
@@ -661,7 +693,6 @@ export const Trades: CollectionConfig = {
 }
 
 // Helper function to calculate trade statistics
-// Helper function to calculate trade statistics with weighted normalization
 function calculateTradeStats(trades: any[]): TradeStats {
   // Initialize arrays for standard and normalized data
   const winners: any[] = []
@@ -801,7 +832,6 @@ function calculateTradeStats(trades: any[]): TradeStats {
 
   // Calculate normalized statistics
   const normalizedTrades = trades.filter((trade) => trade.normalizedMetrics)
-  console.log('normalizedTrades', normalizedTrades)
 
   if (normalizedTrades.length > 0) {
     // For normalized stats we need to use weighted averages based on position size
@@ -811,8 +841,6 @@ function calculateTradeStats(trades: any[]): TradeStats {
     const normalizedLosers = normalizedTrades.filter(
       (t) => t.normalizedMetrics.profitLossPercent < 0,
     )
-
-    // -------------------- WEIGHTED CALCULATIONS FOR NORMALIZED METRICS --------------------
 
     // Calculate total normalized P/L amount
     stats.normalized.totalProfitLoss = normalizedTrades.reduce(
@@ -831,28 +859,17 @@ function calculateTradeStats(trades: any[]): TradeStats {
         ? (stats.normalized.totalProfitLoss / normalizedInvestment) * 100
         : 0
 
-    // --------------- WEIGHTED METRICS FOR WINNERS ---------------
+    // Calculate normalized metrics for winners
     if (normalizedWinners.length > 0) {
-      // For normalized win percentage, use weighted average based on normalization factor
-      let totalWinnerWeight = 0
-      let weightedWinSum = 0
       let maxNormalizedGain = 0
 
-      // Calculate weighted sum and find max gain
       normalizedWinners.forEach((trade) => {
-        const weight = trade.normalizationFactor || 1
-        totalWinnerWeight += weight
-        weightedWinSum += trade.normalizedMetrics.profitLossPercent * weight
-
         // Find maximum normalized gain
         if (trade.normalizedMetrics.profitLossPercent > maxNormalizedGain) {
           maxNormalizedGain = trade.normalizedMetrics.profitLossPercent
         }
       })
 
-      // Weighted average win percentage
-      //stats.normalized.averageWinPercent =
-      //  totalWinnerWeight > 0 ? weightedWinSum / totalWinnerWeight : 0
       stats.normalized.averageWinPercent =
         normalizedWinners.length > 0
           ? normalizedWinners.reduce(
@@ -864,29 +881,17 @@ function calculateTradeStats(trades: any[]): TradeStats {
       stats.normalized.maxGainPercent = maxNormalizedGain
     }
 
-    // --------------- WEIGHTED METRICS FOR LOSERS ---------------
+    // Calculate normalized metrics for losers
     if (normalizedLosers.length > 0) {
-      // For normalized loss percentage, use weighted average based on normalization factor
-      let totalLoserWeight = 0
-      let weightedLossSum = 0
       let minNormalizedLoss = 0
 
-      // Calculate weighted sum and find max loss
       normalizedLosers.forEach((trade) => {
-        const weight = trade.normalizationFactor || 1
-        totalLoserWeight += weight
-        weightedLossSum += trade.normalizedMetrics.profitLossPercent * weight
-
         // Find minimum normalized loss (most negative value)
         if (trade.normalizedMetrics.profitLossPercent < minNormalizedLoss) {
           minNormalizedLoss = trade.normalizedMetrics.profitLossPercent
         }
       })
 
-      // Weighted average loss percentage
-      //stats.normalized.averageLossPercent = totalLoserWeight > 0
-      //  ? weightedLossSum / totalLoserWeight
-      //  : 0;
       stats.normalized.averageLossPercent =
         normalizedLosers.length > 0
           ? normalizedLosers.reduce(
@@ -918,20 +923,10 @@ function calculateTradeStats(trades: any[]): TradeStats {
         ? Math.abs(stats.normalized.maxGainPercent / stats.normalized.maxLossPercent)
         : 0
 
-    // Calculate normalized average R-ratio (weighted)
-    let totalRRatioWeight = 0
-    let weightedRRatioSum = 0
-
-    normalizedTrades.forEach((trade) => {
-      if (trade.normalizedMetrics.rRatio !== undefined) {
-        const weight = trade.normalizationFactor || 1
-        totalRRatioWeight += weight
-        weightedRRatioSum += trade.normalizedMetrics.rRatio * weight
-      }
-    })
-
+    // Calculate normalized average R-ratio
     stats.normalized.averageRRatio =
-      totalRRatioWeight > 0 ? weightedRRatioSum / totalRRatioWeight : 0
+      normalizedTrades.reduce((sum, trade) => sum + (trade.normalizedMetrics.rRatio || 0), 0) /
+      normalizedTrades.length
 
     // Calculate normalized profit factor
     const normalizedGrossWins = normalizedWinners.reduce(

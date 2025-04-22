@@ -20,13 +20,11 @@ import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { plugins } from './plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
-import { lexicalEditor } from '@payloadcms/richtext-lexical'; // Claude add
+import { lexicalEditor } from '@payloadcms/richtext-lexical' // Claude add
 import { getServerSideURL } from './utilities/getURL'
 
-
 // Import admin customizations
-//import { createStatsPage } from './admin/stats'; 
-
+//import { createStatsPage } from './admin/stats';
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -53,6 +51,8 @@ export default buildConfig({
     },
     user: Users.slug,
     livePreview: {
+      url: 'http://localhost:3001',
+      collections: ['pages', 'trades', 'media'],
       breakpoints: [
         {
           label: 'Mobile',
@@ -83,18 +83,24 @@ export default buildConfig({
     },
   }),
   collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades],
-  cors: [
-    getServerSideURL(),
-    'http://localhost:3001',
-    'https://host.plasmicdev.com',
-    // Add any additional domains you need
-  ].filter(Boolean),
+  cors: {
+    origins: [
+      getServerSideURL(),
+      'http://localhost:3001',
+      'https://host.plasmicdev.com',
+      // Add any additional domains you need
+    ].filter(Boolean),
+    credentials: true,
+    exposedHeaders: ['Content-Range', 'X-Total-Count'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    maxAge: 86400, // 24 hours
+  },
   globals: [Header, Footer],
   /*meta: {
     titleSuffix: '- Koblich Chronicles',
     favicon: '/assets/favicon.ico',
     ogImage: '/assets/og-image.jpg',
-  }, Claude addition */ 
+  }, Claude addition */
   plugins: [
     ...plugins,
     //storage-adapter-placeholder
@@ -102,7 +108,7 @@ export default buildConfig({
   secret: process.env.PAYLOAD_SECRET,
   sharp,
   typescript: {
-    outputFile: path.resolve(dirname, 'payload-types.ts')
+    outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
   graphQL: {
     schemaOutputFile: path.resolve(dirname, 'generated-schema.graphql'),
@@ -110,7 +116,19 @@ export default buildConfig({
   csrf: [
     // Add your frontend URL here
     process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
+    'http://localhost:3001',
+    'https://host.plasmicdev.com',
   ],
+  session: {
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      httpOnly: true,
+      // domain: your domain for production if needed
+    },
+    // Session expiration - 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  },
   jobs: {
     access: {
       run: ({ req }: { req: PayloadRequest }): boolean => {

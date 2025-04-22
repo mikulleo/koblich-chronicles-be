@@ -1,20 +1,64 @@
 // src/collections/Charts.ts
-import { CollectionConfig, PayloadRequest } from 'payload';
-import { updateTickerStatsHook } from '../hooks/updateTickerStats';
-import { updateTickerTagsHook } from '../hooks/updateTickerTags';
+import { CollectionConfig, PayloadRequest } from 'payload'
+import { updateTickerStatsHook } from '../hooks/updateTickerStats'
+import { updateTickerTagsHook } from '../hooks/updateTickerTags'
+
+// Helper function to format chart display names
+const formatChartTitle = (chart: any): string => {
+  // Safely extract ticker info
+  let tickerDisplay = '—'
+  if (chart.ticker) {
+    if (typeof chart.ticker === 'object' && chart.ticker.symbol) {
+      tickerDisplay = chart.ticker.symbol
+    } else if (typeof chart.ticker === 'string' || typeof chart.ticker === 'number') {
+      tickerDisplay = `Ticker ID:${chart.ticker}`
+    }
+  }
+
+  // Format date
+  const dateStr = chart.timestamp
+    ? typeof chart.timestamp === 'string'
+      ? new Date(chart.timestamp).toLocaleDateString()
+      : chart.timestamp.toLocaleDateString()
+    : '—'
+
+  // Get timeframe
+  const timeframe = chart.timeframe || '—'
+
+  // Return formatted title
+  return `ID:${chart.id || 'new'} | ${tickerDisplay} | ${dateStr} | ${timeframe}`
+}
 
 export const Charts: CollectionConfig = {
   slug: 'charts',
   admin: {
-    defaultColumns: ['image', 'ticker', 'timestamp', 'tags'],
-    useAsTitle: 'id',
+    defaultColumns: ['image', 'ticker', 'timestamp', 'timeframe', 'tags'],
+    // Use displayTitle field for admin display
+    useAsTitle: 'displayTitle',
     group: 'Stock Data',
-    listSearchableFields: ['ticker.symbol', 'notes'],
+    listSearchableFields: ['ticker.symbol', 'notes', 'displayTitle'],
   },
   access: {
     read: () => true,
   },
   fields: [
+    {
+      name: 'displayTitle',
+      type: 'text',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Auto-generated display title for relationships',
+      },
+      hooks: {
+        beforeChange: [
+          async ({ data, siblingData, value }) => {
+            // Keep existing value during updates
+            return value || null
+          },
+        ],
+      },
+    },
     {
       name: 'image',
       type: 'upload',
@@ -40,10 +84,27 @@ export const Charts: CollectionConfig = {
       admin: {
         description: 'When was this chart captured',
         date: {
-          pickerAppearance: 'dayAndTime',
+          pickerAppearance: 'dayOnly',
         },
       },
       defaultValue: () => new Date(),
+    },
+    {
+      name: 'timeframe',
+      type: 'select',
+      options: [
+        { label: 'Daily', value: 'daily' },
+        { label: 'Weekly', value: 'weekly' },
+        { label: 'Monthly', value: 'monthly' },
+        { label: 'Intraday', value: 'intraday' },
+        { label: 'Other', value: 'other' },
+      ],
+      required: true,
+      defaultValue: 'daily',
+      admin: {
+        description: 'Chart timeframe (daily, weekly, etc.)',
+        position: 'sidebar',
+      },
     },
     {
       name: 'notes',
@@ -115,15 +176,15 @@ export const Charts: CollectionConfig = {
             beforeChange: [
               ({ siblingData }) => {
                 if (siblingData.startPrice && siblingData.endPrice) {
-                  const startPrice = parseFloat(siblingData.startPrice);
-                  const endPrice = parseFloat(siblingData.endPrice);
-                  
+                  const startPrice = parseFloat(siblingData.startPrice)
+                  const endPrice = parseFloat(siblingData.endPrice)
+
                   if (startPrice && endPrice) {
-                    return ((endPrice - startPrice) / startPrice) * 100;
+                    return ((endPrice - startPrice) / startPrice) * 100
                   }
                 }
-                return null;
-              }
+                return null
+              },
             ],
           },
         },
@@ -148,28 +209,57 @@ export const Charts: CollectionConfig = {
         beforeChange: [
           async ({ value }) => {
             // Keep existing value during update operations
-            return value || null;
-          }
+            return value || null
+          },
         ],
       },
     },
   ],
   hooks: {
-    /*
-    afterChange: [
-      // Execute hooks sequentially with proper error handling
-      async (args) => {
-        // First, update the ticker stats
-        const docAfterStats = await updateTickerStatsHook(args);
-        
-        // Then update ticker tags - but only if updateTickerTagsHook function exists
-        // This is to handle the case where the function was commented out in the original code
-        if (typeof updateTickerTagsHook === 'function') {
-          return await updateTickerTagsHook({ ...args, doc: docAfterStats });
+    // Combine all hooks into a single property
+    afterRead: [
+      async ({ doc, req }) => {
+        // If ticker is present but not populated, try to populate it
+        if (doc.ticker && typeof doc.ticker !== 'object') {
+          try {
+            // Explicitly fetch the ticker to get its symbol
+            const tickerDoc = await req.payload.findByID({
+              collection: 'tickers',
+              id: doc.ticker,
+              depth: 0,
+            })
+
+            if (tickerDoc) {
+              // Create a populated ticker object
+              doc.ticker = {
+                id: doc.ticker,
+                symbol: tickerDoc.symbol,
+              }
+            }
+          } catch (error) {
+            console.error('Error populating ticker in chart:', error)
+          }
         }
-        
-        return docAfterStats;
+
+        // Use the helper function to set the display title
+        doc.displayTitle = formatChartTitle(doc)
+
+        return doc
       },
+    ],
+    beforeChange: [
+      ({ data, operation }) => {
+        // For create operations, set a preliminary display title
+        if (operation === 'create') {
+          data.displayTitle = formatChartTitle(data)
+        }
+
+        return data
+      },
+    ],
+    afterChange: [
+      updateTickerStatsHook,
+      updateTickerTagsHook,
       // Handle keyboard navigation ID as a separate hook
       async ({ doc, operation, req }) => {
         if (operation === 'create') {
@@ -179,8 +269,8 @@ export const Charts: CollectionConfig = {
               collection: 'charts',
               limit: 0,
               depth: 0,
-            });
-            
+            })
+
             await req.payload.update({
               collection: 'charts',
               id: doc.id,
@@ -188,14 +278,14 @@ export const Charts: CollectionConfig = {
                 keyboardNavId: count.totalDocs,
               },
               depth: 0,
-            });
+            })
           } catch (err) {
-            console.error('Error updating keyboardNavId:', err);
+            console.error('Error updating keyboardNavId:', err)
           }
         }
-        return doc;
+        return doc
       },
-    ],*/
+    ],
   },
   endpoints: [
     {
@@ -203,11 +293,11 @@ export const Charts: CollectionConfig = {
       method: 'get',
       handler: async (req: PayloadRequest) => {
         try {
-          const id = req.routeParams?.id;
-          const filter = req.query?.filter;
+          const id = req.routeParams?.id
+          const filter = req.query?.filter
 
           if (!id || (typeof id !== 'string' && typeof id !== 'number')) {
-            return Response.json({ message: 'Invalid Chart ID' }, { status: 400 });
+            return Response.json({ message: 'Invalid Chart ID' }, { status: 400 })
           }
 
           // Get the current chart to find its keyboardNavId
@@ -215,10 +305,10 @@ export const Charts: CollectionConfig = {
             collection: 'charts',
             id,
             depth: 0, // No need to load relationships
-          });
+          })
 
           if (!currentChart) {
-            return Response.json({ message: 'Chart not found' }, { status: 404 });
+            return Response.json({ message: 'Chart not found' }, { status: 404 })
           }
 
           // Find the next chart based on keyboardNavId
@@ -226,7 +316,7 @@ export const Charts: CollectionConfig = {
             keyboardNavId: {
               greater_than: currentChart.keyboardNavId,
             },
-          };
+          }
 
           // Apply additional filters if provided
           if (filter) {
@@ -240,10 +330,10 @@ export const Charts: CollectionConfig = {
             sort: 'keyboardNavId',
             limit: 1,
             depth: 1, // Load first-level relationships
-          });
+          })
 
           if (nextCharts.docs.length > 0) {
-            return Response.json(nextCharts.docs[0]);
+            return Response.json(nextCharts.docs[0])
           } else {
             // Wrap around to the first chart
             const firstCharts = await req.payload.find({
@@ -251,17 +341,17 @@ export const Charts: CollectionConfig = {
               sort: 'keyboardNavId',
               limit: 1,
               depth: 1, // Load first-level relationships
-            });
+            })
 
             if (firstCharts.docs.length > 0) {
-              return Response.json(firstCharts.docs[0]);
+              return Response.json(firstCharts.docs[0])
             } else {
-              return Response.json({ message: 'No charts available' }, { status: 404 });
+              return Response.json({ message: 'No charts available' }, { status: 404 })
             }
           }
         } catch (error) {
-          console.error('Error fetching next chart:', error);
-          return Response.json({ message: 'Error fetching next chart' }, { status: 500 });
+          console.error('Error fetching next chart:', error)
+          return Response.json({ message: 'Error fetching next chart' }, { status: 500 })
         }
       },
     },
@@ -270,11 +360,11 @@ export const Charts: CollectionConfig = {
       method: 'get',
       handler: async (req: PayloadRequest) => {
         try {
-          const id = req.routeParams?.id;
-          const filter = req.query?.filter;
+          const id = req.routeParams?.id
+          const filter = req.query?.filter
 
           if (!id || (typeof id !== 'string' && typeof id !== 'number')) {
-            return Response.json({ message: 'Invalid Chart ID' }, { status: 400 });
+            return Response.json({ message: 'Invalid Chart ID' }, { status: 400 })
           }
 
           // Get the current chart to find its keyboardNavId
@@ -282,10 +372,10 @@ export const Charts: CollectionConfig = {
             collection: 'charts',
             id,
             depth: 0, // No need to load relationships
-          });
+          })
 
           if (!currentChart) {
-            return Response.json({ message: 'Chart not found' }, { status: 404 });
+            return Response.json({ message: 'Chart not found' }, { status: 404 })
           }
 
           // Find the previous chart based on keyboardNavId
@@ -293,7 +383,7 @@ export const Charts: CollectionConfig = {
             keyboardNavId: {
               less_than: currentChart.keyboardNavId,
             },
-          };
+          }
 
           // Apply additional filters if provided
           if (filter) {
@@ -307,10 +397,10 @@ export const Charts: CollectionConfig = {
             sort: '-keyboardNavId',
             limit: 1,
             depth: 1, // Load first-level relationships
-          });
+          })
 
           if (prevCharts.docs.length > 0) {
-            return Response.json(prevCharts.docs[0]);
+            return Response.json(prevCharts.docs[0])
           } else {
             // Wrap around to the last chart
             const lastCharts = await req.payload.find({
@@ -318,17 +408,51 @@ export const Charts: CollectionConfig = {
               sort: '-keyboardNavId',
               limit: 1,
               depth: 1, // Load first-level relationships
-            });
+            })
 
             if (lastCharts.docs.length > 0) {
-              return Response.json(lastCharts.docs[0]);
+              return Response.json(lastCharts.docs[0])
             } else {
-              return Response.json({ message: 'No charts available' }, { status: 404 });
+              return Response.json({ message: 'No charts available' }, { status: 404 })
             }
           }
         } catch (error) {
-          console.error('Error fetching previous chart:', error);
-          return Response.json({ message: 'Error fetching previous chart' }, { status: 500 });
+          console.error('Error fetching previous chart:', error)
+          return Response.json({ message: 'Error fetching previous chart' }, { status: 500 })
+        }
+      },
+    },
+    // New endpoint for filtering charts by timeframe
+    {
+      path: '/by-timeframe/:timeframe',
+      method: 'get',
+      handler: async (req: PayloadRequest) => {
+        try {
+          const timeframe = req.routeParams?.timeframe
+          const page = parseInt((req.query?.page as string) || '1', 10)
+          const limit = parseInt((req.query?.limit as string) || '20', 10)
+
+          if (!timeframe) {
+            return Response.json({ message: 'Timeframe is required' }, { status: 400 })
+          }
+
+          const charts = await req.payload.find({
+            collection: 'charts',
+            where: {
+              timeframe: {
+                equals: timeframe,
+              },
+            },
+            page,
+            limit,
+            sort: '-timestamp',
+            depth: 1, // Load first-level relationships
+          })
+
+          return Response.json(charts)
+        } catch (error) {
+          console.error('Error fetching charts by timeframe:', error)
+          return Response.json({ message: 'Error fetching charts by timeframe' }, { status: 500 })
         }
       },
     },
@@ -338,12 +462,12 @@ export const Charts: CollectionConfig = {
       method: 'get',
       handler: async (req: PayloadRequest) => {
         try {
-          const tagId = req.routeParams?.tagId;
-          const page = parseInt(req.query?.page as string || '1', 10);
-          const limit = parseInt(req.query?.limit as string || '20', 10);
+          const tagId = req.routeParams?.tagId
+          const page = parseInt((req.query?.page as string) || '1', 10)
+          const limit = parseInt((req.query?.limit as string) || '20', 10)
 
           if (!tagId) {
-            return Response.json({ message: 'Tag ID is required' }, { status: 400 });
+            return Response.json({ message: 'Tag ID is required' }, { status: 400 })
           }
 
           const charts = await req.payload.find({
@@ -357,14 +481,14 @@ export const Charts: CollectionConfig = {
             limit,
             sort: '-timestamp',
             depth: 1, // Load first-level relationships
-          });
+          })
 
-          return Response.json(charts);
+          return Response.json(charts)
         } catch (error) {
-          console.error('Error fetching charts by tag:', error);
-          return Response.json({ message: 'Error fetching charts by tag' }, { status: 500 });
+          console.error('Error fetching charts by tag:', error)
+          return Response.json({ message: 'Error fetching charts by tag' }, { status: 500 })
         }
       },
     },
   ],
-};
+}

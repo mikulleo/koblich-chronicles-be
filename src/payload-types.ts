@@ -826,6 +826,10 @@ export interface Ticker {
 export interface Chart {
   id: number;
   /**
+   * Auto-generated display title for relationships
+   */
+  displayTitle?: string | null;
+  /**
    * Upload a stock chart screenshot
    */
   image: number | Media;
@@ -837,6 +841,10 @@ export interface Chart {
    * When was this chart captured
    */
   timestamp: string;
+  /**
+   * Chart timeframe (daily, weekly, etc.)
+   */
+  timeframe: 'daily' | 'weekly' | 'monthly' | 'intraday' | 'other';
   /**
    * Notes about this chart pattern or observation
    */
@@ -916,6 +924,14 @@ export interface Trade {
    * Initial stop loss price
    */
   initialStopLoss: number;
+  /**
+   * Charts associated with this trade
+   */
+  relatedCharts?: (number | Chart)[] | null;
+  /**
+   * Type of trading setup
+   */
+  setupType?: ('breakout' | 'pullback' | 'reversal' | 'gap' | 'other') | null;
   /**
    * Track changes to stop loss
    */
@@ -1650,9 +1666,11 @@ export interface TickersSelect<T extends boolean = true> {
  * via the `definition` "charts_select".
  */
 export interface ChartsSelect<T extends boolean = true> {
+  displayTitle?: T;
   image?: T;
   ticker?: T;
   timestamp?: T;
+  timeframe?: T;
   notes?: T;
   tags?: T;
   annotations?: T;
@@ -1681,6 +1699,8 @@ export interface TradesSelect<T extends boolean = true> {
   entryPrice?: T;
   shares?: T;
   initialStopLoss?: T;
+  relatedCharts?: T;
+  setupType?: T;
   modifiedStops?:
     | T
     | {

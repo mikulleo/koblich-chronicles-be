@@ -2,6 +2,7 @@
 import { CollectionConfig, PayloadRequest } from 'payload'
 import { updateTickerStatsHook } from '../hooks/updateTickerStats'
 import { updateTickerTagsHook } from '../hooks/updateTickerTags'
+import { updateTickerStatsAfterDeleteHook } from '../hooks/updateTickerStatsAfterDelete'
 
 // Helper function to format chart display names
 const formatChartTitle = (chart: any): string => {
@@ -286,6 +287,8 @@ export const Charts: CollectionConfig = {
         return doc
       },
     ],
+    // Add the afterDelete hook
+    afterDelete: [updateTickerStatsAfterDeleteHook],
   },
   endpoints: [
     {
@@ -297,7 +300,7 @@ export const Charts: CollectionConfig = {
           const filter = req.query?.filter
 
           if (!id || (typeof id !== 'string' && typeof id !== 'number')) {
-            return Response.json({ message: 'Invalid Chart ID' }, { status: 400 })
+            return Response.json({ error: 'Invalid Chart ID' }, { status: 400 })
           }
 
           // Get the current chart to find its keyboardNavId
@@ -308,7 +311,7 @@ export const Charts: CollectionConfig = {
           })
 
           if (!currentChart) {
-            return Response.json({ message: 'Chart not found' }, { status: 404 })
+            return Response.json({ error: 'Chart not found' }, { status: 404 })
           }
 
           // Find the next chart based on keyboardNavId
@@ -346,12 +349,12 @@ export const Charts: CollectionConfig = {
             if (firstCharts.docs.length > 0) {
               return Response.json(firstCharts.docs[0])
             } else {
-              return Response.json({ message: 'No charts available' }, { status: 404 })
+              return Response.json({ error: 'No charts available' }, { status: 404 })
             }
           }
         } catch (error) {
           console.error('Error fetching next chart:', error)
-          return Response.json({ message: 'Error fetching next chart' }, { status: 500 })
+          return Response.json({ error: 'Error fetching next chart' }, { status: 500 })
         }
       },
     },
@@ -364,7 +367,7 @@ export const Charts: CollectionConfig = {
           const filter = req.query?.filter
 
           if (!id || (typeof id !== 'string' && typeof id !== 'number')) {
-            return Response.json({ message: 'Invalid Chart ID' }, { status: 400 })
+            return Response.json({ error: 'Invalid Chart ID' }, { status: 400 })
           }
 
           // Get the current chart to find its keyboardNavId
@@ -375,7 +378,7 @@ export const Charts: CollectionConfig = {
           })
 
           if (!currentChart) {
-            return Response.json({ message: 'Chart not found' }, { status: 404 })
+            return Response.json({ error: 'Chart not found' }, { status: 404 })
           }
 
           // Find the previous chart based on keyboardNavId
@@ -413,12 +416,12 @@ export const Charts: CollectionConfig = {
             if (lastCharts.docs.length > 0) {
               return Response.json(lastCharts.docs[0])
             } else {
-              return Response.json({ message: 'No charts available' }, { status: 404 })
+              return Response.json({ error: 'No charts available' }, { status: 404 })
             }
           }
         } catch (error) {
           console.error('Error fetching previous chart:', error)
-          return Response.json({ message: 'Error fetching previous chart' }, { status: 500 })
+          return Response.json({ error: 'Error fetching previous chart' }, { status: 500 })
         }
       },
     },
@@ -433,7 +436,7 @@ export const Charts: CollectionConfig = {
           const limit = parseInt((req.query?.limit as string) || '20', 10)
 
           if (!timeframe) {
-            return Response.json({ message: 'Timeframe is required' }, { status: 400 })
+            return Response.json({ error: 'Timeframe is required' }, { status: 400 })
           }
 
           const charts = await req.payload.find({
@@ -452,7 +455,7 @@ export const Charts: CollectionConfig = {
           return Response.json(charts)
         } catch (error) {
           console.error('Error fetching charts by timeframe:', error)
-          return Response.json({ message: 'Error fetching charts by timeframe' }, { status: 500 })
+          return Response.json({ error: 'Error fetching charts by timeframe' }, { status: 500 })
         }
       },
     },
@@ -467,7 +470,7 @@ export const Charts: CollectionConfig = {
           const limit = parseInt((req.query?.limit as string) || '20', 10)
 
           if (!tagId) {
-            return Response.json({ message: 'Tag ID is required' }, { status: 400 })
+            return Response.json({ error: 'Tag ID is required' }, { status: 400 })
           }
 
           const charts = await req.payload.find({
@@ -486,7 +489,7 @@ export const Charts: CollectionConfig = {
           return Response.json(charts)
         } catch (error) {
           console.error('Error fetching charts by tag:', error)
-          return Response.json({ message: 'Error fetching charts by tag' }, { status: 500 })
+          return Response.json({ error: 'Error fetching charts by tag' }, { status: 500 })
         }
       },
     },

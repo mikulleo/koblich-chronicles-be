@@ -3,6 +3,7 @@ import { calculateTradeMetricsHook } from '../hooks/calculateTradeMetrics'
 import { updateTickerTradeStatsHook } from '../hooks/updateTickerTradeStats'
 import { calculateCurrentMetricsHook } from '@/hooks/calculateCurrentMetrics'
 import { calculateNormalizedMetricsHook } from '@/hooks/calculateNormalizedMetrics'
+import { updateTickerTradeStatsAfterDeleteHook } from '@/hooks/updateTickerTradeStatsAfterDelete'
 import { Where } from 'payload'
 
 // Define interfaces for type safety
@@ -614,6 +615,7 @@ export const Trades: CollectionConfig = {
       calculateNormalizedMetricsHook,
     ],
     afterChange: [updateTickerTradeStatsHook],
+    afterDelete: [updateTickerTradeStatsAfterDeleteHook],
   },
   endpoints: [
     {

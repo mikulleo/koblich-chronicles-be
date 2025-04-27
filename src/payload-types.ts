@@ -54,6 +54,7 @@ export type SupportedTimezones =
   | 'Asia/Singapore'
   | 'Asia/Tokyo'
   | 'Asia/Seoul'
+  | 'Australia/Brisbane'
   | 'Australia/Sydney'
   | 'Pacific/Guam'
   | 'Pacific/Noumea'
@@ -661,6 +662,7 @@ export interface Form {
             label?: string | null;
             width?: number | null;
             defaultValue?: string | null;
+            placeholder?: string | null;
             options?:
               | {
                   label: string;
@@ -846,9 +848,26 @@ export interface Chart {
    */
   timeframe: 'daily' | 'weekly' | 'monthly' | 'intraday' | 'other';
   /**
-   * Notes about this chart pattern or observation
+   * Categorized notes about this chart pattern or observation
    */
-  notes?: string | null;
+  notes?: {
+    /**
+     * Notes about the chart setup and entry points
+     */
+    setupEntry?: string | null;
+    /**
+     * Notes about the overall trend
+     */
+    trend?: string | null;
+    /**
+     * Notes about fundamental analysis
+     */
+    fundamentals?: string | null;
+    /**
+     * Additional notes that don't fit the categories above
+     */
+    other?: string | null;
+  };
   /**
    * Tags for categorizing this chart
    */
@@ -979,7 +998,7 @@ export interface Trade {
          * Date of exit
          */
         date: string;
-        reason?: ('target' | 'stop' | 'technical' | 'fundamental' | 'other') | null;
+        reason?: ('strength' | 'stop' | 'backstop' | 'violation' | 'other') | null;
         notes?: string | null;
         id?: string | null;
       }[]
@@ -1671,7 +1690,14 @@ export interface ChartsSelect<T extends boolean = true> {
   ticker?: T;
   timestamp?: T;
   timeframe?: T;
-  notes?: T;
+  notes?:
+    | T
+    | {
+        setupEntry?: T;
+        trend?: T;
+        fundamentals?: T;
+        other?: T;
+      };
   tags?: T;
   annotations?: T;
   measurements?:
@@ -1833,6 +1859,7 @@ export interface FormsSelect<T extends boolean = true> {
               label?: T;
               width?: T;
               defaultValue?: T;
+              placeholder?: T;
               options?:
                 | T
                 | {

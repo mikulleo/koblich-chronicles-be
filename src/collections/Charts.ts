@@ -107,11 +107,68 @@ export const Charts: CollectionConfig = {
         position: 'sidebar',
       },
     },
+    // Replace single notes field with a group of categorized notes
     {
       name: 'notes',
-      type: 'textarea',
+      type: 'group',
       admin: {
-        description: 'Notes about this chart pattern or observation',
+        description: 'Categorized notes about this chart pattern or observation',
+      },
+      fields: [
+        {
+          name: 'setupEntry',
+          label: 'Setup / Entry',
+          type: 'textarea',
+          admin: {
+            description: 'Notes about the chart setup and entry points',
+          },
+        },
+        {
+          name: 'trend',
+          label: 'Trend',
+          type: 'textarea',
+          admin: {
+            description: 'Notes about the overall trend',
+          },
+        },
+        {
+          name: 'fundamentals',
+          label: 'Fundamentals',
+          type: 'textarea',
+          admin: {
+            description: 'Notes about fundamental analysis',
+          },
+        },
+        {
+          name: 'other',
+          label: 'Other',
+          type: 'textarea',
+          admin: {
+            description: "Additional notes that don't fit the categories above",
+          },
+        },
+      ],
+      // Migration hook to convert existing notes to the new structure
+      hooks: {
+        beforeChange: [
+          async ({ siblingData, value }) => {
+            // Check if we're getting data from the old format (single text field)
+            if (
+              typeof siblingData.notes === 'string' &&
+              siblingData.notes.trim() !== '' &&
+              (!value || Object.keys(value).length === 0)
+            ) {
+              // Migrate the old notes to the 'other' category
+              return {
+                setupEntry: '',
+                trend: '',
+                fundamentals: '',
+                other: siblingData.notes || '',
+              }
+            }
+            return value
+          },
+        ],
       },
     },
     {

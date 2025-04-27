@@ -1,10 +1,10 @@
 // src/hooks/updateTickerTags.ts
-import { CollectionAfterChangeHook } from 'payload';
+import { CollectionAfterChangeHook } from 'payload'
 
 // Keep track of which ticker we're currently updating to prevent recursion
 // This is a module-level variable that persists between hook calls
-const updatingTickers = new Set<string | number>();
-const updatingTags = new Set<string | number>();
+const updatingTickers = new Set<string | number>()
+const updatingTags = new Set<string | number>()
 
 /**
  * Update the tags associated with a ticker based on charts
@@ -12,19 +12,24 @@ const updatingTags = new Set<string | number>();
 export const updateTickerTagsHook: CollectionAfterChangeHook = async ({ doc, req, operation }) => {
   try {
     // Skip if there's no ticker
-    if (!doc.ticker) return doc;
-    
+    if (!doc.ticker) return doc
+
+    // Add a timeout to ensure the hook doesn't run indefinitely
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Hook timed out')), 10000),
+    )
+
     // Get ticker ID (handle both populated and non-populated cases)
-    const tickerId = typeof doc.ticker === 'object' ? doc.ticker.id : doc.ticker;
-    
+    const tickerId = typeof doc.ticker === 'object' ? doc.ticker.id : doc.ticker
+
     // Skip if we're already processing this ticker (prevents recursion)
     if (updatingTickers.has(tickerId)) {
-      return doc;
+      return doc
     }
-    
+
     // Mark that we're updating this ticker
-    updatingTickers.add(tickerId);
-    
+    updatingTickers.add(tickerId)
+
     // Find all charts with this ticker
     const chartsResponse = await req.payload.find({
       collection: 'charts',
@@ -35,36 +40,36 @@ export const updateTickerTagsHook: CollectionAfterChangeHook = async ({ doc, req
       },
       depth: 0,
       limit: 200, // Reasonable limit for performance
-    });
-    
+    })
+
     // Collect all unique tag IDs
-    const allTagIds = new Set<number>();
-    const tagCountMap: Record<string, number> = {};
-    
+    const allTagIds = new Set<number>()
+    const tagCountMap: Record<string, number> = {}
+
     // Process each chart to build the tags list and counts
-    chartsResponse.docs.forEach(chart => {
+    chartsResponse.docs.forEach((chart) => {
       if (chart.tags && Array.isArray(chart.tags)) {
-        chart.tags.forEach(tag => {
+        chart.tags.forEach((tag) => {
           // Handle both populated and non-populated cases
-          const tagId = typeof tag === 'object' ? tag.id : tag;
+          const tagId = typeof tag === 'object' ? tag.id : tag
           if (tagId) {
             // Make sure we're dealing with a number
-            const numericTagId = typeof tagId === 'string' ? parseInt(tagId, 10) : tagId;
-            
+            const numericTagId = typeof tagId === 'string' ? parseInt(tagId, 10) : tagId
+
             // Only process valid numeric IDs
             if (!isNaN(numericTagId)) {
               // Add to unique tag set
-              allTagIds.add(numericTagId);
-              
+              allTagIds.add(numericTagId)
+
               // Update the count for this tag
-              const tagKey = String(numericTagId);
-              tagCountMap[tagKey] = (tagCountMap[tagKey] || 0) + 1;
+              const tagKey = String(numericTagId)
+              tagCountMap[tagKey] = (tagCountMap[tagKey] || 0) + 1
             }
           }
-        });
+        })
       }
-    });
-    
+    })
+
     // Update the ticker with the aggregated tags
     await req.payload.update({
       collection: 'tickers',
@@ -73,20 +78,20 @@ export const updateTickerTagsHook: CollectionAfterChangeHook = async ({ doc, req
         tags: Array.from(allTagIds),
       },
       depth: 0,
-    });
-    
+    })
+
     // Update each tag count - use Promise.all for better performance
     const updatePromises = Object.entries(tagCountMap).map(async ([tagIdStr, count]) => {
-      const tagId = parseInt(tagIdStr, 10);
-      
+      const tagId = parseInt(tagIdStr, 10)
+
       // Skip if we're already updating this tag
       if (updatingTags.has(tagId)) {
-        return;
+        return
       }
-      
+
       try {
-        updatingTags.add(tagId);
-        
+        updatingTags.add(tagId)
+
         await req.payload.update({
           collection: 'tags',
           id: tagId,
@@ -94,27 +99,29 @@ export const updateTickerTagsHook: CollectionAfterChangeHook = async ({ doc, req
             chartsCount: count,
           },
           depth: 0,
-        });
+        })
       } finally {
-        updatingTags.delete(tagId);
+        updatingTags.delete(tagId)
       }
-    });
-    
+    })
+
     // Wait for all tag updates to complete
-    await Promise.all(updatePromises);
-    
+    //await Promise.all(updatePromises);
+    // Race the hook execution against the timeout
+    return await Promise.race([updatePromises, timeoutPromise])
+
     // Remove the ticker from our tracking set
-    updatingTickers.delete(tickerId);
-    
-    return doc;
+    updatingTickers.delete(tickerId)
+
+    return doc
   } catch (error) {
     // Make sure to clean up our tracking set even if an error occurs
     if (doc.ticker) {
-      const tickerId = typeof doc.ticker === 'object' ? doc.ticker.id : doc.ticker;
-      updatingTickers.delete(tickerId);
+      const tickerId = typeof doc.ticker === 'object' ? doc.ticker.id : doc.ticker
+      updatingTickers.delete(tickerId)
     }
-    
-    console.error('Error in updateTickerTagsHook:', error);
-    return doc;
+
+    console.error('Error in updateTickerTagsHook:', error)
+    return doc
   }
-};
+}

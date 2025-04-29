@@ -76,6 +76,7 @@ export interface Config {
     tickers: Ticker;
     charts: Chart;
     trades: Trade;
+    donations: Donation;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -96,6 +97,7 @@ export interface Config {
     tickers: TickersSelect<false> | TickersSelect<true>;
     charts: ChartsSelect<false> | ChartsSelect<true>;
     trades: TradesSelect<false> | TradesSelect<true>;
+    donations: DonationsSelect<false> | DonationsSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -1060,6 +1062,40 @@ export interface Trade {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "donations".
+ */
+export interface Donation {
+  id: number;
+  /**
+   * Donation amount
+   */
+  amount: number;
+  currency: 'CZK' | 'EUR' | 'USD';
+  status: 'initiated' | 'completed' | 'failed' | 'canceled';
+  transactionId?: string | null;
+  paymentId?: string | null;
+  donor?: {
+    name?: string | null;
+    email?: string | null;
+    message?: string | null;
+  };
+  /**
+   * Additional payment data
+   */
+  metadata?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
 export interface Redirect {
@@ -1265,6 +1301,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'trades';
         value: number | Trade;
+      } | null)
+    | ({
+        relationTo: 'donations';
+        value: number | Donation;
       } | null)
     | ({
         relationTo: 'redirects';
@@ -1775,6 +1815,27 @@ export interface TradesSelect<T extends boolean = true> {
         profitLossPercent?: T;
         rRatio?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "donations_select".
+ */
+export interface DonationsSelect<T extends boolean = true> {
+  amount?: T;
+  currency?: T;
+  status?: T;
+  transactionId?: T;
+  paymentId?: T;
+  donor?:
+    | T
+    | {
+        name?: T;
+        email?: T;
+        message?: T;
+      };
+  metadata?: T;
   updatedAt?: T;
   createdAt?: T;
 }

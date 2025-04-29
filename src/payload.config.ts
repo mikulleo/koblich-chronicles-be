@@ -16,6 +16,7 @@ import { Tags } from './collections/Tags'
 import { Tickers } from './collections/Tickers'
 import { Charts } from './collections/Charts'
 import { Trades } from './collections/Trades'
+import { Donations } from './collections/Donations'
 import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { plugins } from './plugins'
@@ -82,10 +83,11 @@ export default buildConfig({
       connectionString: process.env.DATABASE_URI || '',
     },
   }),
-  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades],
+  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades, Donations],
   cors: {
     origins: [
       getServerSideURL(),
+      process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
       'http://localhost:3001',
       'https://host.plasmicdev.com',
       // Add any additional domains you need

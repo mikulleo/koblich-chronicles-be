@@ -30,6 +30,9 @@ import { getServerSideURL } from '@/utilities/getURL'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+const PAYLOAD_SECRET =
+  process.env.PAYLOAD_SECRET || 'temporary_secret_for_build_only_not_for_production'
+
 export default buildConfig({
   admin: {
     components: {
@@ -104,7 +107,8 @@ export default buildConfig({
     ...plugins,
     //storage-adapter-placeholder
   ],
-  secret: process.env.PAYLOAD_SECRET,
+  //secret: process.env.PAYLOAD_SECRET,
+  secret: PAYLOAD_SECRET,
   sharp,
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),

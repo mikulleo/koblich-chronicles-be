@@ -1,5 +1,7 @@
 import PageTemplate, { generateMetadata } from './[slug]/page'
 
-export default PageTemplate
+export default async function HomePage() {
+  return <PageTemplate params={{ slug: 'home' }} />
+}
 
-export { generateMetadata }
+export { generateMetadata } from './[slug]/page'

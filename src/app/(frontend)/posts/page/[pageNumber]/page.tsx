@@ -18,12 +18,6 @@ type Args = {
 }
 
 export default async function Page({ params: paramsPromise }: Args) {
-  // Skip database queries during build time
-  if (process.env.NODE_ENV === 'production' && !process.env.RAILWAY_STATIC_URL) {
-    console.log('Skipping generateStaticParams in production build')
-    return [] // Return empty array during build
-  }
-
   const { pageNumber } = await paramsPromise
   const payload = await getPayload({ config: configPromise })
 

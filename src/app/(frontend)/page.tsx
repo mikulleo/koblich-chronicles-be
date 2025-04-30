@@ -2,12 +2,6 @@ import PageTemplate, { generateMetadata as slughPageGenerateMetadata } from './[
 import { Metadata } from 'next'
 
 export default async function HomePage() {
-  // Skip database queries during build time
-  if (process.env.NODE_ENV === 'production' && !process.env.RAILWAY_STATIC_URL) {
-    console.log('Skipping generateStaticParams in production build')
-    return [] // Return empty array during build
-  }
-
   return PageTemplate({ params: Promise.resolve({ slug: 'home' }) })
 }
 

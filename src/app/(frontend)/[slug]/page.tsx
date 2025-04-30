@@ -42,12 +42,6 @@ const queryPageBySlug = cache(async ({ slug }: { slug: string }) => {
 })
 
 export async function generateStaticParams() {
-  // Skip database queries during build time
-  if (process.env.NODE_ENV === 'production' && !process.env.RAILWAY_STATIC_URL) {
-    console.log('Skipping generateStaticParams in production build')
-    return [] // Return empty array during build
-  }
-
   const payload = await getPayload({ config: configPromise })
   const pages = await payload.find({
     collection: 'pages',

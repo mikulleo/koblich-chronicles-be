@@ -17,6 +17,12 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
   const { q: query } = await searchParamsPromise
   const payload = await getPayload({ config: configPromise })
 
+  // Skip database queries during build time
+  if (process.env.NODE_ENV === 'production' && !process.env.RAILWAY_STATIC_URL) {
+    console.log('Skipping generateStaticParams in production build')
+    return [] // Return empty array during build
+  }
+
   const posts = await payload.find({
     collection: 'search',
     depth: 1,

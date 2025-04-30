@@ -7,22 +7,22 @@ import { buildConfig, PayloadRequest } from 'payload'
 import { fileURLToPath } from 'url'
 
 // Import collections
-import { Categories } from './collections/Categories'
-import { Media } from './collections/Media'
-import { Pages } from './collections/Pages'
-import { Posts } from './collections/Posts'
-import { Users } from './collections/Users'
-import { Tags } from './collections/Tags'
-import { Tickers } from './collections/Tickers'
-import { Charts } from './collections/Charts'
-import { Trades } from './collections/Trades'
-import { Donations } from './collections/Donations'
-import { Footer } from './Footer/config'
-import { Header } from './Header/config'
-import { plugins } from './plugins'
+import { Categories } from '@/collections/Categories'
+import { Media } from '@/collections/Media'
+import { Pages } from '@/collections/Pages'
+import { Posts } from '@/collections/Posts'
+import { Users } from '@/collections/Users'
+import { Tags } from '@/collections/Tags'
+import { Tickers } from '@/collections/Tickers'
+import { Charts } from '@/collections/Charts'
+import { Trades } from '@/collections/Trades'
+import { Donations } from '@/collections/Donations'
+import { Footer } from '@/Footer/config'
+import { Header } from '@/Header/config'
+import { plugins } from '@/plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
 import { lexicalEditor } from '@payloadcms/richtext-lexical' // Claude add
-import { getServerSideURL } from './utilities/getURL'
+import { getServerSideURL } from '@/utilities/getURL'
 
 // Import admin customizations
 //import { createStatsPage } from './admin/stats';
@@ -92,10 +92,7 @@ export default buildConfig({
       'https://host.plasmicdev.com',
       // Add any additional domains you need
     ].filter(Boolean),
-    credentials: true,
-    exposedHeaders: ['Content-Range', 'X-Total-Count'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    maxAge: 86400, // 24 hours
+    headers: ['Content-Range', 'X-Total-Count'],
   },
   globals: [Header, Footer],
   /*meta: {
@@ -121,16 +118,6 @@ export default buildConfig({
     'http://localhost:3001',
     'https://host.plasmicdev.com',
   ],
-  session: {
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      httpOnly: true,
-      // domain: your domain for production if needed
-    },
-    // Session expiration - 7 days
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  },
   jobs: {
     access: {
       run: ({ req }: { req: PayloadRequest }): boolean => {

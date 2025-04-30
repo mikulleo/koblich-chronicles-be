@@ -1,7 +1,12 @@
-import PageTemplate, { generateMetadata } from './[slug]/page'
+import PageTemplate, { generateMetadata as slughPageGenerateMetadata } from './[slug]/page'
+import { Metadata } from 'next'
 
 export default async function HomePage() {
-  return <PageTemplate params={{ slug: 'home' }} />
+  return PageTemplate({ params: Promise.resolve({ slug: 'home' }) })
 }
 
-export { generateMetadata } from './[slug]/page'
+// Implement our own generateMetadata function for the home page
+export async function generateMetadata(): Promise<Metadata> {
+  // Reuse the slug page's generateMetadata function with 'home' as slug
+  return slughPageGenerateMetadata({ params: Promise.resolve({ slug: 'home' }) })
+}

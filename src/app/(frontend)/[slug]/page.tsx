@@ -14,14 +14,15 @@ import { RenderHero } from '@/heros/RenderHero'
 import { homeStatic } from '@/endpoints/seed/home-static'
 import PageClient from './page.client'
 
+// Keep your Props type as is
 type Props = {
-  params: {
+  params: Promise<{
     slug?: string
-  }
+  }>
 }
 
 const queryPageBySlug = cache(async ({ slug }: { slug: string }) => {
-  const { isEnabled: draft } = await draftMode()
+  const { isEnabled: draft } = await draftMode() // Call draftMode() directly
   const payload = await getPayload({ config: configPromise })
 
   const result = await payload.find({
@@ -62,15 +63,20 @@ export async function generateStaticParams() {
   )
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug = 'home' } = await params
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params
+  // --- FIX: Remove await ---
+  const { slug = 'home' } = params
   const page = await queryPageBySlug({ slug })
   return generateMeta({ doc: page })
 }
 
-export default async function Page({ params }: Props) {
-  const { isEnabled: draft } = await draftMode()
-  const { slug = 'home' } = await params
+export default async function Page(props: Props) {
+  const params = await props.params
+  const { isEnabled: draft } = await draftMode() // Call draftMode() directly
+
+  // --- FIX: Remove await ---
+  const { slug = 'home' } = params
   const url = '/' + slug
 
   let page: RequiredDataFromCollectionSlug<'pages'> | null = await queryPageBySlug({
@@ -83,7 +89,10 @@ export default async function Page({ params }: Props) {
   }
 
   if (!page) {
-    return <PayloadRedirects url={url} />
+    // Use notFound() for clearer 404 handling if PayloadRedirects isn't essential here
+    // or keep PayloadRedirects if it handles more complex redirect logic
+    // notFound(); // <-- Consider using this if PayloadRedirects isn't needed for a simple 404
+    return <PayloadRedirects url={url} /> // Keep if you need specific redirect logic
   }
 
   const { hero, layout } = page

@@ -1,3 +1,4 @@
+/*
 // src/migrations/notes-to-structured-notes.ts
 import { Payload } from 'payload'
 
@@ -70,3 +71,4 @@ export const migrateNotes = async (payload: Payload): Promise<void> => {
 //     // Other initialization code
 //   },
 // })
+*/

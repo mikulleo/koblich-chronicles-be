@@ -15,23 +15,10 @@ type Args = {
   }>
 }
 
-export const generateMetadata = async (props: Args): Promise<Metadata> => {
-  const params = await props.params
-  const transformedParams = Promise.resolve(
-    Object.fromEntries(params.segments.map((value, index) => [`${index}`, value])),
-  )
-  const transformedSearchParams = Promise.resolve(props.searchParams)
-  return generatePageMetadata({
-    config,
-    params: transformedParams,
-    searchParams: transformedSearchParams,
-  })
-}
+export const generateMetadata = ({ params, searchParams }: Args): Promise<Metadata> =>
+  generatePageMetadata({ config, params, searchParams })
 
-const Page = async (props: Args) => {
-  const searchParams = Promise.resolve(props.searchParams)
-  const params = Promise.resolve(props.params)
-  return RootPage({ config, params, searchParams, importMap })
-}
+const Page = ({ params, searchParams }: Args) =>
+  RootPage({ config, params, searchParams, importMap })
 
 export default Page

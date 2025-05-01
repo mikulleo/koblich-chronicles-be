@@ -55,7 +55,7 @@ export default buildConfig({
     },
     user: Users.slug,
     livePreview: {
-      url: 'http://localhost:3001',
+      url: 'http://koblich-chronicles-be-production.up.railway.app',
       collections: ['pages', 'trades', 'media'],
       breakpoints: [
         {
@@ -93,6 +93,8 @@ export default buildConfig({
       process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
       'http://localhost:3001',
       'https://host.plasmicdev.com',
+      'https://koblich-chronicles-fe-3g6s-leos-mikulkas-projects.vercel.app',
+      'https://koblich-chronicles-fe-3g6s.vercel.app',
       // Add any additional domains you need
     ].filter(Boolean),
     headers: ['Content-Range', 'X-Total-Count'],
@@ -121,6 +123,8 @@ export default buildConfig({
     process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
     'http://localhost:3001',
     'https://host.plasmicdev.com',
+    'https://koblich-chronicles-fe-3g6s-leos-mikulkas-projects.vercel.app',
+    'https://koblich-chronicles-fe-3g6s.vercel.app',
   ],
   jobs: {
     access: {

@@ -3,12 +3,15 @@ import axios, { AxiosError } from 'axios'
 import { v4 as uuidv4 } from 'uuid'
 
 // Configuration based on environment
-const BARION_API_URL =
-  process.env.NODE_ENV === 'production' ? 'https://api.barion.com' : 'https://api.test.barion.com'
+//const BARION_API_URL =
+//  process.env.NODE_ENV === 'production' ? 'https://api.barion.com' : 'https://api.test.barion.com'
+
+// temp for testing
+const BARION_API_URL = 'https://api.test.barion.com'
 
 const BARION_POS_KEY = process.env.BARION_POS_KEY
 //const REDIRECT_URL = process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000'
-const REDIRECT_URL = 'http://localhost:3001'
+const REDIRECT_URL = 'https://koblich-chronicles-fe-3g6s.vercel.app'
 
 export const barionService = {
   async startPayment(

@@ -84,6 +84,12 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URI || '',
+      // Connection pool configuration to prevent transaction timeouts
+      max: 10, // Maximum number of connections in the pool
+      idleTimeoutMillis: 30000, // How long a connection can remain idle before being closed
+      connectionTimeoutMillis: 5000, // How long to wait for a connection
+      statement_timeout: 30000, // Terminate any statement that takes more than 30 seconds
+      allowExitOnIdle: true, // Allow the pool to exit cleanly
     },
   }),
   collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades, Donations],

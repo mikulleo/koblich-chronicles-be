@@ -6,7 +6,7 @@ export async function OPTIONS(req: Request) {
   return new Response(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': 'http://localhost:3001',
+      'Access-Control-Allow-Origin': 'https://koblich-chronicles-fe-3g6s.vercel.app',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       },
       {
         headers: {
-          'Access-Control-Allow-Origin': 'http://localhost:3001',
+          'Access-Control-Allow-Origin': 'https://koblich-chronicles-fe-3g6s.vercel.app',
           'Access-Control-Allow-Credentials': 'true',
         },
       },

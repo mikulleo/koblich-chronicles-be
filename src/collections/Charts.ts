@@ -36,6 +36,10 @@ export const Charts: CollectionConfig = {
     useAsTitle: 'displayTitle',
     group: 'Stock Data',
     listSearchableFields: ['ticker.symbol', 'notes', 'displayTitle'],
+    pagination: {
+      defaultLimit: 10000,
+      limits: [10, 25, 50, 100, 200, 500, 1000, 10000],
+    },
   },
   access: {
     read: () => true,

@@ -4,7 +4,9 @@ import redirects from './redirects.js'
 
 const NEXT_PUBLIC_SERVER_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : undefined || process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
+  : undefined ||
+    process.env.NEXT_PUBLIC_SERVER_URL ||
+    'https://koblich-chronicles-be-production.up.railway.app'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

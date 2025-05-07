@@ -4,13 +4,12 @@ import { v4 as uuidv4 } from 'uuid'
 
 // Configuration based on environment
 const PAYPAL_API_URL =
-  process.env.NODE_ENV === 'production'
-    ? 'https://api-m.paypal.com'
-    : 'https://api-m.sandbox.paypal.com'
+  process.env.NODE_ENV === 'production' ? 'https://api-m.paypal.com' : 'https://api-m.paypal.com'
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET
-const REDIRECT_URL = process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000'
+const REDIRECT_URL =
+  process.env.PAYLOAD_PUBLIC_SERVER_URL || 'https://koblich-chronicles-be-production.up.railway.app'
 
 export const paypalService = {
   // Get access token from PayPal

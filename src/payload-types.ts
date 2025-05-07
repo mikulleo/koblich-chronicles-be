@@ -1071,7 +1071,7 @@ export interface Donation {
    */
   amount: number;
   currency: 'CZK' | 'EUR' | 'USD';
-  status: 'initiated' | 'completed' | 'failed' | 'canceled';
+  status: 'initiated' | 'completed' | 'failed' | 'canceled' | 'refunded';
   transactionId?: string | null;
   paymentId?: string | null;
   donor?: {

@@ -34,8 +34,8 @@ export async function GET(req: Request) {
     if (donations.docs.length > 0) {
       const donation = donations.docs[0]
 
-      // Only update if not already completed
-      if (donation.status !== 'completed') {
+      // Only update if donation exists and is not already completed
+      if (donation && donation.status !== 'completed') {
         // Update donation status
         await payload.update({
           collection: 'donations',
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
           data: {
             status: orderResult.status === 'COMPLETED' ? 'completed' : donation.status,
             metadata: {
-              ...donation.metadata,
+              ...((donation.metadata as Record<string, unknown>) || {}),
               orderDetails: orderResult.data,
             },
           },

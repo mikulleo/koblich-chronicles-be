@@ -2,7 +2,6 @@
 import { getPayload } from 'payload'
 import crypto from 'crypto'
 import config from '@payload-config'
-import { safelyUpdateMetadata } from '@/utilities/safelyUpdateMetadata'
 
 // Verify webhook signature (security best practice)
 function verifyWebhookSignature(payload: string, signature: string, webhookId: string) {
@@ -71,19 +70,20 @@ export async function POST(req: Request) {
         if (donations.docs.length > 0) {
           const donation = donations.docs[0]
 
-          if (donation && donation.id) {
-            // Update donation status
-            await payload.update({
-              collection: 'donations',
-              id: donation.id,
-              data: {
-                status: 'completed',
-                metadata: safelyUpdateMetadata(donation.metadata, { webhookData }),
+          // Update donation status
+          await payload.update({
+            collection: 'donations',
+            id: donation.id,
+            data: {
+              status: 'completed',
+              metadata: {
+                ...donation.metadata,
+                webhookData: webhookData,
               },
-            })
+            },
+          })
 
-            console.log(`Donation ${donation.id} marked as completed`)
-          }
+          console.log(`Donation ${donation.id} marked as completed`)
         }
       }
     } else if (eventType === 'PAYMENT.CAPTURE.DENIED' || eventType === 'PAYMENT.CAPTURE.REFUNDED') {
@@ -103,29 +103,22 @@ export async function POST(req: Request) {
       if (donations.docs.length > 0) {
         const donation = donations.docs[0]
 
-        if (donation && donation.id) {
-          const newStatus = eventType === 'PAYMENT.CAPTURE.DENIED' ? 'failed' : 'canceled'
-
-          if (!webhookData || !webhookData.event_type) {
-            console.error('Invalid webhook payload', webhookData)
-            return Response.json(
-              { success: false, message: 'Invalid webhook payload' },
-              { status: 400 },
-            )
-          }
-
-          // Update donation status
-          await payload.update({
-            collection: 'donations',
-            id: donation.id,
-            data: {
-              status: newStatus,
-              metadata: safelyUpdateMetadata(donation.metadata, { webhookData }),
+        // Update donation status
+        await payload.update({
+          collection: 'donations',
+          id: donation.id,
+          data: {
+            status: eventType === 'PAYMENT.CAPTURE.DENIED' ? 'failed' : 'refunded',
+            metadata: {
+              ...donation.metadata,
+              webhookData: webhookData,
             },
-          })
+          },
+        })
 
-          console.log(`Donation ${donation.id} marked as ${newStatus}`)
-        }
+        console.log(
+          `Donation ${donation.id} marked as ${eventType === 'PAYMENT.CAPTURE.DENIED' ? 'failed' : 'refunded'}`,
+        )
       }
     }
 

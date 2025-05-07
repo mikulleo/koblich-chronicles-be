@@ -2,7 +2,6 @@
 import { getPayload } from 'payload'
 import { paypalService } from '@/utilities/paypalService'
 import config from '@payload-config'
-import { safelyUpdateMetadata } from '@/utilities/safelyUpdateMetadata'
 
 export async function GET(req: Request) {
   try {
@@ -13,16 +12,16 @@ export async function GET(req: Request) {
       return Response.json({ success: false, error: 'Order ID is required' }, { status: 400 })
     }
 
-    // Capture the payment
-    const captureResult = await paypalService.capturePayment(orderId)
+    // Instead of capturing, just get order details
+    const orderResult = await paypalService.getOrderDetails(orderId)
 
-    if (!captureResult.success) {
-      return Response.json({ success: false, error: captureResult.error }, { status: 500 })
+    if (!orderResult.success) {
+      return Response.json({ success: false, error: orderResult.error }, { status: 500 })
     }
 
     const payload = await getPayload({ config })
 
-    // Find the donation by payment ID (order ID)
+    // Find the donation by payment ID (order ID) without sending any limit parameter
     const donations = await payload.find({
       collection: 'donations',
       where: {
@@ -35,24 +34,29 @@ export async function GET(req: Request) {
     if (donations.docs.length > 0) {
       const donation = donations.docs[0]
 
-      if (donation && donation.id) {
+      // Only update if not already completed
+      if (donation.status !== 'completed') {
         // Update donation status
         await payload.update({
           collection: 'donations',
           id: donation.id,
           data: {
-            status: 'completed',
-            metadata: safelyUpdateMetadata(donation.metadata, {
-              captureData: captureResult.data,
-            }),
+            status: orderResult.status === 'COMPLETED' ? 'completed' : donation.status,
+            metadata: {
+              ...donation.metadata,
+              orderDetails: orderResult.data,
+            },
           },
         })
       }
     }
 
-    return Response.json({ success: true, status: captureResult.status })
+    return Response.json({ success: true, status: orderResult.status })
   } catch (error) {
-    console.error('PayPal capture error:', error)
-    return Response.json({ success: false, error: 'Failed to capture payment' }, { status: 500 })
+    console.error('PayPal order details error:', error)
+    return Response.json(
+      { success: false, error: 'Failed to get payment details' },
+      { status: 500 },
+    )
   }
 }

@@ -3,14 +3,14 @@ import axios, { AxiosError } from 'axios'
 import { v4 as uuidv4 } from 'uuid'
 
 // Configuration based on environment
-//const BARION_API_URL =
-//  process.env.NODE_ENV === 'production' ? 'https://api.barion.com' : 'https://api.test.barion.com'
+const BARION_API_URL =
+  process.env.NODE_ENV === 'production' ? 'https://api.barion.com' : 'https://api.test.barion.com'
 
-const BARION_API_URL = 'https://api.barion.com'
+//const BARION_API_URL = 'https://api.barion.com'
 
 const BARION_POS_KEY = process.env.BARION_POS_KEY
-//const REDIRECT_URL = process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000'
-const REDIRECT_URL = 'https://www.koblich-chronicles.com'
+const REDIRECT_URL = process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000'
+//const REDIRECT_URL = 'https://www.koblich-chronicles.com'
 
 export const barionService = {
   async startPayment(

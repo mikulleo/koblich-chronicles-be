@@ -1,12 +1,13 @@
+// src/app/(payload)/api/donations/route.ts
 import { getPayload } from 'payload'
-import { barionService } from '@/utilities/barionService'
+import { paypalService } from '@/utilities/paypalService'
 import config from '@payload-config'
 
 export async function OPTIONS(req: Request) {
   return new Response(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': 'https://www.koblich-chronicles.com',
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
@@ -20,14 +21,14 @@ export async function POST(req: Request) {
     const body = await req.json()
 
     // Validate the request
-    const { amount, currency = 'CZK', donorName, donorEmail, message } = body
+    const { amount, currency = 'USD', donorName, donorEmail, message } = body
 
     if (!amount || amount < 1) {
       return Response.json({ success: false, error: 'Invalid amount' }, { status: 400 })
     }
 
-    // Initialize payment with Barion
-    const paymentResult = await barionService.startPayment(
+    // Initialize payment with PayPal
+    const paymentResult = await paypalService.createOrder(
       amount,
       currency,
       `Donation to Koblich Chronicles${message ? `: ${message.substring(0, 50)}` : ''}`,
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
       },
       {
         headers: {
-          'Access-Control-Allow-Origin': 'https://www.koblich-chronicles.com',
+          'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Credentials': 'true',
         },
       },

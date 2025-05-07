@@ -43,6 +43,7 @@ export const Donations: CollectionConfig = {
         { label: 'Completed', value: 'completed' },
         { label: 'Failed', value: 'failed' },
         { label: 'Canceled', value: 'canceled' },
+        { label: 'Refunded', value: 'refunded' },
       ],
       defaultValue: 'initiated',
     },

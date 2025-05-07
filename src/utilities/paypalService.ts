@@ -94,7 +94,6 @@ export const paypalService = {
 
       // Create order
       const response = await axios.post(`${PAYPAL_API_URL}/v2/checkout/orders`, payload, {
-        params: { limit: undefined },
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -128,25 +127,12 @@ export const paypalService = {
   // Capture payment after approval
   async capturePayment(orderId: string) {
     try {
-      // First, check the order status
-      const orderDetails = await this.getOrderDetails(orderId)
-
-      // If order is already COMPLETED, return success
-      if (orderDetails.success && orderDetails.data.status === 'COMPLETED') {
-        return {
-          success: true,
-          status: 'COMPLETED',
-          data: orderDetails.data,
-        }
-      }
-
       const accessToken = await this.getAccessToken()
 
       const response = await axios.post(
         `${PAYPAL_API_URL}/v2/checkout/orders/${orderId}/capture`,
         {},
         {
-          params: { limit: undefined },
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
@@ -161,21 +147,6 @@ export const paypalService = {
       }
     } catch (error) {
       console.error('PayPal capture payment error:', error)
-
-      // Check if this is an "already captured" error
-      if (
-        error instanceof AxiosError &&
-        error.response?.status === 422 &&
-        error.response?.data?.details?.[0]?.issue === 'ORDER_ALREADY_CAPTURED'
-      ) {
-        // If already captured, consider this a success
-        return {
-          success: true,
-          status: 'COMPLETED',
-          data: { message: 'Order was already captured' },
-        }
-      }
-
       return {
         success: false,
         error: 'Failed to capture payment',
@@ -190,21 +161,22 @@ export const paypalService = {
 
       const response = await axios.get(`${PAYPAL_API_URL}/v2/checkout/orders/${orderId}`, {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
       })
 
       return {
         success: true,
-        status: response.data.status,
         data: response.data,
+        status: response.data.status,
+        transactionId: response.data.id,
       }
     } catch (error) {
       console.error('PayPal get order details error:', error)
       return {
         success: false,
-        error: 'Failed to get order details',
+        error: 'Failed to get order details from PayPal',
       }
     }
   },

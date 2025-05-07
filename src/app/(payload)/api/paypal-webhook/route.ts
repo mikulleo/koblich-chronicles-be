@@ -70,20 +70,24 @@ export async function POST(req: Request) {
         if (donations.docs.length > 0) {
           const donation = donations.docs[0]
 
-          // Update donation status
-          await payload.update({
-            collection: 'donations',
-            id: donation.id,
-            data: {
-              status: 'completed',
-              metadata: {
-                ...donation.metadata,
-                webhookData: webhookData,
+          if (donation && donation.id) {
+            // Update donation status
+            await payload.update({
+              collection: 'donations',
+              id: donation.id,
+              data: {
+                status: 'completed',
+                metadata: {
+                  ...((donation.metadata as Record<string, any>) || {}),
+                  webhookData: webhookData,
+                },
               },
-            },
-          })
+            })
 
-          console.log(`Donation ${donation.id} marked as completed`)
+            console.log(`Donation ${donation.id} marked as completed`)
+          } else {
+            console.error('Found donation record but ID is missing')
+          }
         }
       }
     } else if (eventType === 'PAYMENT.CAPTURE.DENIED' || eventType === 'PAYMENT.CAPTURE.REFUNDED') {
@@ -103,22 +107,26 @@ export async function POST(req: Request) {
       if (donations.docs.length > 0) {
         const donation = donations.docs[0]
 
-        // Update donation status
-        await payload.update({
-          collection: 'donations',
-          id: donation.id,
-          data: {
-            status: eventType === 'PAYMENT.CAPTURE.DENIED' ? 'failed' : 'refunded',
-            metadata: {
-              ...donation.metadata,
-              webhookData: webhookData,
+        if (donation && donation.id) {
+          // Update donation status
+          await payload.update({
+            collection: 'donations',
+            id: donation.id,
+            data: {
+              status: eventType === 'PAYMENT.CAPTURE.DENIED' ? 'failed' : 'refunded',
+              metadata: {
+                ...((donation.metadata as Record<string, any>) || {}),
+                webhookData: webhookData,
+              },
             },
-          },
-        })
+          })
 
-        console.log(
-          `Donation ${donation.id} marked as ${eventType === 'PAYMENT.CAPTURE.DENIED' ? 'failed' : 'refunded'}`,
-        )
+          console.log(
+            `Donation ${donation.id} marked as ${eventType === 'PAYMENT.CAPTURE.DENIED' ? 'failed' : 'refunded'}`,
+          )
+        } else {
+          console.error('Found donation record but ID is missing')
+        }
       }
     }
 

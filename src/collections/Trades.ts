@@ -618,79 +618,125 @@ export const Trades: CollectionConfig = {
     afterDelete: [updateTickerTradeStatsAfterDeleteHook],
   },
   endpoints: [
-    {
-      path: '/stats',
-      method: 'get',
-      handler: async (req: PayloadRequest) => {
-        try {
-          const startDate = req.query?.startDate as string | undefined
-          const endDate = req.query?.endDate as string | undefined
-          const tickerId = req.query?.tickerId as string | undefined
-          const statusFilter = req.query?.statusFilter as string | undefined
+   // ONLY replace the stats endpoint handler with this:
+// Everything else in your Trades collection stays EXACTLY the same
 
-          // Build the query
-          const query: Record<string, any> = {}
+{
+  path: '/stats',
+  method: 'get',
+  handler: async (req: PayloadRequest) => {
+    try {
+      const startDate = req.query?.startDate as string | undefined
+      const endDate = req.query?.endDate as string | undefined
+      const tickerId = req.query?.tickerId as string | undefined
+      const statusFilter = req.query?.statusFilter as string | undefined
 
-          // Handle status filter
-          if (statusFilter === 'closed-only') {
-            query.status = {
-              equals: 'closed',
-            }
-          } else {
-            // Default: include both closed and partially closed trades
-            query.status = {
-              in: ['closed', 'partial'],
-            }
-          }
+      // Build the query (UNCHANGED except removing date filters)
+      const query: Record<string, any> = {}
 
-          // Add date filters if provided
-          if (startDate) {
-            query.entryDate = query.entryDate || {}
-            query.entryDate.greater_than_equal = new Date(startDate)
-          }
-
-          if (endDate) {
-            query.entryDate = query.entryDate || {}
-            query.entryDate.less_than_equal = new Date(endDate)
-          }
-
-          // Add ticker filter if provided
-          if (tickerId) {
-            query.ticker = {
-              equals: tickerId,
-            }
-          }
-
-          // Fetch the trades
-          const trades = await req.payload.find({
-            collection: 'trades',
-            where: query,
-            limit: 1000,
-          })
-
-          const closedTradesCount = trades.docs.filter((t) => t.status === 'closed').length
-          const partialTradesCount = trades.docs.filter((t) => t.status === 'partial').length
-
-          // Calculate statistics
-          const stats = calculateTradeStats(trades.docs)
-
-          // Add more detailed metadata about the filter used
-          const metadata = {
-            totalTrades: trades.totalDocs,
-            closedTrades: closedTradesCount,
-            partialTrades: partialTradesCount,
-            statusFilter: statusFilter === 'closed-only' ? 'Closed Only' : 'Closed and Partial',
-            dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All Time',
-            tickerFilter: tickerId ? true : false,
-          }
-
-          return Response.json({ stats, metadata })
-        } catch (error) {
-          console.error('Error calculating trade stats:', error)
-          return Response.json({ message: 'Error calculating trade statistics' }, { status: 500 })
+      // Handle status filter (UNCHANGED)
+      if (statusFilter === 'closed-only') {
+        query.status = {
+          equals: 'closed',
         }
-      },
-    },
+      } else {
+        // Default: include both closed and partially closed trades
+        query.status = {
+          in: ['closed', 'partial'],
+        }
+      }
+
+      // REMOVED: Date filtering on entryDate
+      // OLD CODE (removed):
+      // if (startDate) {
+      //   query.entryDate = query.entryDate || {}
+      //   query.entryDate.greater_than_equal = new Date(startDate)
+      // }
+      // if (endDate) {
+      //   query.entryDate = query.entryDate || {}
+      //   query.entryDate.less_than_equal = new Date(endDate)
+      // }
+
+      // Add ticker filter if provided (UNCHANGED)
+      if (tickerId) {
+        query.ticker = {
+          equals: tickerId,
+        }
+      }
+
+      // Fetch ALL trades matching status/ticker (NEW: no date filtering)
+      const trades = await req.payload.find({
+        collection: 'trades',
+        where: query,
+        limit: 1000,
+      })
+
+      // NEW: Filter by last exit date instead of entry date
+      let filteredTrades = trades.docs
+      
+      if (startDate || endDate) {
+        filteredTrades = trades.docs.filter(trade => {
+          // Get the last exit date for this trade
+          let completionDate: Date
+          
+          if (trade.exits && trade.exits.length > 0) {
+            // Find the most recent exit date
+            const lastExitDate = trade.exits.reduce((latest: string, exit: any) => {
+              const exitDate = new Date(exit.date)
+              const latestDate = new Date(latest)
+              return exitDate > latestDate ? exit.date : latest
+            }, trade.exits[0]?.date || trade.entryDate)
+            
+            completionDate = new Date(lastExitDate)
+          } else {
+            // Fallback to entry date (shouldn't happen for closed/partial trades)
+            completionDate = new Date(trade.entryDate)
+          }
+          
+          // Apply date filtering using completion date
+          if (startDate) {
+            const filterStartDate = new Date(startDate)
+            if (completionDate < filterStartDate) {
+              return false
+            }
+          }
+          
+          if (endDate) {
+            const filterEndDate = new Date(endDate)
+            filterEndDate.setHours(23, 59, 59, 999) // End of day
+            if (completionDate > filterEndDate) {
+              return false
+            }
+          }
+          
+          return true
+        })
+      }
+
+      // Calculate counts (CHANGED: use filteredTrades instead of trades.docs)
+      const closedTradesCount = filteredTrades.filter((t) => t.status === 'closed').length
+      const partialTradesCount = filteredTrades.filter((t) => t.status === 'partial').length
+
+      // Calculate statistics (UNCHANGED - same function, same logic)
+      const stats = calculateTradeStats(filteredTrades)
+
+      // Metadata (UNCHANGED except totalTrades count)
+      const metadata = {
+        totalTrades: filteredTrades.length, // CHANGED: was trades.totalDocs
+        closedTrades: closedTradesCount,
+        partialTrades: partialTradesCount,
+        statusFilter: statusFilter === 'closed-only' ? 'Closed Only' : 'Closed and Partial',
+        dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All Time',
+        tickerFilter: tickerId ? true : false,
+      }
+
+      return Response.json({ stats, metadata })
+    } catch (error) {
+      console.error('Error calculating trade stats:', error)
+      return Response.json({ message: 'Error calculating trade statistics' }, { status: 500 })
+    }
+  },
+}
   ],
 }
 

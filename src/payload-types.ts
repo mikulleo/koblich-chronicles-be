@@ -869,6 +869,31 @@ export interface Chart {
      * Additional notes that don't fit the categories above
      */
     other?: string | null;
+    /**
+     * Trade story metadata for timeline features
+     */
+    tradeStory?: {
+      /**
+       * What role does this chart play in the trade story?
+       */
+      chartRole?: ('entry' | 'management' | 'stopAdjustment' | 'exit' | 'analysis' | 'context' | 'reference') | null;
+      /**
+       * Order in the trade story (1, 2, 3...)
+       */
+      storySequence?: number | null;
+      /**
+       * What were you thinking at this moment? Decision process, market read, etc.
+       */
+      decisionNotes?: string | null;
+      /**
+       * Your emotional state when viewing this chart
+       */
+      emotionalState?: ('confident' | 'cautious' | 'uncertain' | 'fearful' | 'greedy' | 'neutral') | null;
+      /**
+       * Market conditions, news, or sector activity at this time
+       */
+      marketContext?: string | null;
+    };
   };
   /**
    * Tags for categorizing this chart
@@ -1737,6 +1762,15 @@ export interface ChartsSelect<T extends boolean = true> {
         trend?: T;
         fundamentals?: T;
         other?: T;
+        tradeStory?:
+          | T
+          | {
+              chartRole?: T;
+              storySequence?: T;
+              decisionNotes?: T;
+              emotionalState?: T;
+              marketContext?: T;
+            };
       };
   tags?: T;
   annotations?: T;

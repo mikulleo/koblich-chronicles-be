@@ -1,9 +1,9 @@
 import { CollectionConfig, PayloadRequest } from 'payload'
 import { calculateTradeMetricsHook } from '../hooks/calculateTradeMetrics'
 import { updateTickerTradeStatsHook } from '../hooks/updateTickerTradeStats'
-import { calculateCurrentMetricsHook } from '@/hooks/calculateCurrentMetrics'
-import { calculateNormalizedMetricsHook } from '@/hooks/calculateNormalizedMetrics'
-import { updateTickerTradeStatsAfterDeleteHook } from '@/hooks/updateTickerTradeStatsAfterDelete'
+import { calculateCurrentMetricsHook } from '../hooks/calculateCurrentMetrics'
+import { calculateNormalizedMetricsHook } from '../hooks/calculateNormalizedMetrics'
+import { updateTickerTradeStatsAfterDeleteHook } from '../hooks/updateTickerTradeStatsAfterDelete'
 import { Where } from 'payload'
 
 // Define interfaces for type safety
@@ -618,397 +618,339 @@ export const Trades: CollectionConfig = {
     afterDelete: [updateTickerTradeStatsAfterDeleteHook],
   },
   endpoints: [
-   // ONLY replace the stats endpoint handler with this:
-// Everything else in your Trades collection stays EXACTLY the same
+    // ONLY replace the stats endpoint handler with this:
+    // Everything else in your Trades collection stays EXACTLY the same
 
-{
-  path: '/stats',
-  method: 'get',
-  handler: async (req: PayloadRequest) => {
-    try {
-      const startDate = req.query?.startDate as string | undefined
-      const endDate = req.query?.endDate as string | undefined
-      const tickerId = req.query?.tickerId as string | undefined
-      const statusFilter = req.query?.statusFilter as string | undefined
+    {
+      path: '/stats',
+      method: 'get',
+      handler: async (req: PayloadRequest) => {
+        try {
+          const startDate = req.query?.startDate as string | undefined
+          const endDate = req.query?.endDate as string | undefined
+          const tickerId = req.query?.tickerId as string | undefined
+          const statusFilter = req.query?.statusFilter as string | undefined
 
-      // Build the query (UNCHANGED except removing date filters)
-      const query: Record<string, any> = {}
+          // Build the query (UNCHANGED except removing date filters)
+          const query: Record<string, any> = {}
 
-      // Handle status filter (UNCHANGED)
-      if (statusFilter === 'closed-only') {
-        query.status = {
-          equals: 'closed',
-        }
-      } else {
-        // Default: include both closed and partially closed trades
-        query.status = {
-          in: ['closed', 'partial'],
-        }
-      }
-
-      // REMOVED: Date filtering on entryDate
-      // OLD CODE (removed):
-      // if (startDate) {
-      //   query.entryDate = query.entryDate || {}
-      //   query.entryDate.greater_than_equal = new Date(startDate)
-      // }
-      // if (endDate) {
-      //   query.entryDate = query.entryDate || {}
-      //   query.entryDate.less_than_equal = new Date(endDate)
-      // }
-
-      // Add ticker filter if provided (UNCHANGED)
-      if (tickerId) {
-        query.ticker = {
-          equals: tickerId,
-        }
-      }
-
-      // Fetch ALL trades matching status/ticker (NEW: no date filtering)
-      const trades = await req.payload.find({
-        collection: 'trades',
-        where: query,
-        limit: 1000,
-      })
-
-      // NEW: Filter by last exit date instead of entry date
-      let filteredTrades = trades.docs
-      
-      if (startDate || endDate) {
-        filteredTrades = trades.docs.filter(trade => {
-          // Get the last exit date for this trade
-          let completionDate: Date
-          
-          if (trade.exits && trade.exits.length > 0) {
-            // Find the most recent exit date
-            const lastExitDate = trade.exits.reduce((latest: string, exit: any) => {
-              const exitDate = new Date(exit.date)
-              const latestDate = new Date(latest)
-              return exitDate > latestDate ? exit.date : latest
-            }, trade.exits[0]?.date || trade.entryDate)
-            
-            completionDate = new Date(lastExitDate)
+          // Handle status filter (UNCHANGED)
+          if (statusFilter === 'closed-only') {
+            query.status = {
+              equals: 'closed',
+            }
           } else {
-            // Fallback to entry date (shouldn't happen for closed/partial trades)
-            completionDate = new Date(trade.entryDate)
-          }
-          
-          // Apply date filtering using completion date
-          if (startDate) {
-            const filterStartDate = new Date(startDate)
-            if (completionDate < filterStartDate) {
-              return false
+            // Default: include both closed and partially closed trades
+            query.status = {
+              in: ['closed', 'partial'],
             }
           }
-          
-          if (endDate) {
-            const filterEndDate = new Date(endDate)
-            filterEndDate.setHours(23, 59, 59, 999) // End of day
-            if (completionDate > filterEndDate) {
-              return false
+
+          // REMOVED: Date filtering on entryDate
+          // OLD CODE (removed):
+          // if (startDate) {
+          //   query.entryDate = query.entryDate || {}
+          //   query.entryDate.greater_than_equal = new Date(startDate)
+          // }
+          // if (endDate) {
+          //   query.entryDate = query.entryDate || {}
+          //   query.entryDate.less_than_equal = new Date(endDate)
+          // }
+
+          // Add ticker filter if provided (UNCHANGED)
+          if (tickerId) {
+            query.ticker = {
+              equals: tickerId,
             }
           }
-          
-          return true
-        })
-      }
 
-      // Calculate counts (CHANGED: use filteredTrades instead of trades.docs)
-      const closedTradesCount = filteredTrades.filter((t) => t.status === 'closed').length
-      const partialTradesCount = filteredTrades.filter((t) => t.status === 'partial').length
+          // Fetch ALL trades matching status/ticker (NEW: no date filtering)
+          const trades = await req.payload.find({
+            collection: 'trades',
+            where: query,
+            limit: 1000,
+          })
 
-      // Calculate statistics (UNCHANGED - same function, same logic)
-      const stats = calculateTradeStats(filteredTrades)
+          // NEW: Filter by last exit date instead of entry date
+          let filteredTrades = trades.docs
 
-      // Metadata (UNCHANGED except totalTrades count)
-      const metadata = {
-        totalTrades: filteredTrades.length, // CHANGED: was trades.totalDocs
-        closedTrades: closedTradesCount,
-        partialTrades: partialTradesCount,
-        statusFilter: statusFilter === 'closed-only' ? 'Closed Only' : 'Closed and Partial',
-        dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All Time',
-        tickerFilter: tickerId ? true : false,
-      }
+          if (startDate || endDate) {
+            filteredTrades = trades.docs.filter((trade) => {
+              // Get the last exit date for this trade
+              let completionDate: Date
 
-      return Response.json({ stats, metadata })
-    } catch (error) {
-      console.error('Error calculating trade stats:', error)
-      return Response.json({ message: 'Error calculating trade statistics' }, { status: 500 })
-    }
-  },
-},
-{
-  path: '/:id/story',
-  method: 'get',
-  handler: async (req: PayloadRequest) => {
-    const tradeId = req.routeParams?.id
-    
-    // Fetch trade with related charts
-    const trade = await req.payload.findByID({
-      collection: 'trades',
-      id: tradeId,
-      depth: 2
-    })
-    
-    // Get all related charts sorted by timestamp
-    const storyCharts = await req.payload.find({
-      collection: 'charts',
-      where: {
-        id: {
-          in: (trade.relatedCharts || []).map(c => typeof c === 'object' ? c.id : c)
+              if (trade.exits && trade.exits.length > 0) {
+                // Find the most recent exit date
+                const lastExitDate = trade.exits.reduce((latest: string, exit: any) => {
+                  const exitDate = new Date(exit.date)
+                  const latestDate = new Date(latest)
+                  return exitDate > latestDate ? exit.date : latest
+                }, trade.exits[0]?.date || trade.entryDate)
+
+                completionDate = new Date(lastExitDate)
+              } else {
+                // Fallback to entry date (shouldn't happen for closed/partial trades)
+                completionDate = new Date(trade.entryDate)
+              }
+
+              // Apply date filtering using completion date
+              if (startDate) {
+                const filterStartDate = new Date(startDate)
+                if (completionDate < filterStartDate) {
+                  return false
+                }
+              }
+
+              if (endDate) {
+                const filterEndDate = new Date(endDate)
+                filterEndDate.setHours(23, 59, 59, 999) // End of day
+                if (completionDate > filterEndDate) {
+                  return false
+                }
+              }
+
+              return true
+            })
+          }
+
+          // Calculate counts (CHANGED: use filteredTrades instead of trades.docs)
+          const closedTradesCount = filteredTrades.filter((t) => t.status === 'closed').length
+          const partialTradesCount = filteredTrades.filter((t) => t.status === 'partial').length
+
+          // Calculate statistics (UNCHANGED - same function, same logic)
+          const stats = calculateTradeStats(filteredTrades)
+
+          // Metadata (UNCHANGED except totalTrades count)
+          const metadata = {
+            totalTrades: filteredTrades.length, // CHANGED: was trades.totalDocs
+            closedTrades: closedTradesCount,
+            partialTrades: partialTradesCount,
+            statusFilter: statusFilter === 'closed-only' ? 'Closed Only' : 'Closed and Partial',
+            dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All Time',
+            tickerFilter: tickerId ? true : false,
+          }
+
+          return Response.json({ stats, metadata })
+        } catch (error) {
+          console.error('Error calculating trade stats:', error)
+          return Response.json({ message: 'Error calculating trade statistics' }, { status: 500 })
         }
       },
-      sort: 'timestamp',
-      depth: 1
-    })
-    
-    // Build the story timeline
-    const timeline = {
-      trade,
-      charts: storyCharts.docs,
-      keyEvents: [
-        {
-          date: trade.entryDate,
-          type: 'entry',
-          description: `Entered ${trade.type} position`,
-          price: trade.entryPrice,
-          shares: trade.shares
-        },
-        ...trade.modifiedStops?.map(stop => ({
-          date: stop.date,
-          type: 'stopModified',
-          description: 'Modified stop loss',
-          price: stop.price,
-          notes: stop.notes
-        })) || [],
-        ...trade.exits?.map(exit => ({
-          date: exit.date,
-          type: 'exit',
-          description: `Exited ${exit.shares} shares`,
-          price: exit.price,
-          reason: exit.reason,
-          notes: exit.notes
-        })) || []
-      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    }
-    
-    return Response.json(timeline)
-  }
-},
-{
-  path: '/:id/story',
-  method: 'get',
-  handler: async (req: PayloadRequest) => {
-    try {
-      const tradeId = req.routeParams?.id
+    },
+    {
+      path: '/:id/story',
+      method: 'get',
+      handler: async (req: PayloadRequest) => {
+        try {
+          const tradeId = req.routeParams?.id
 
-      if (!tradeId) {
-        return Response.json({ error: 'Trade ID is required' }, { status: 400 })
-      }
+          if (!tradeId) {
+            return Response.json({ error: 'Trade ID is required' }, { status: 400 })
+          }
 
-      // Fetch the trade with full depth
-      const trade = await req.payload.findByID({
-        collection: 'trades',
-        id: String(tradeId),
-        depth: 2
-      })
-
-      if (!trade) {
-        return Response.json({ error: 'Trade not found' }, { status: 404 })
-      }
-
-      // Get all related charts if they exist
-      let storyCharts = []
-      if (trade.relatedCharts && trade.relatedCharts.length > 0) {
-        const chartIds = trade.relatedCharts.map((chart: any) => 
-          typeof chart === 'object' ? chart.id : chart
-        )
-
-        const chartsResult = await req.payload.find({
-          collection: 'charts',
-          where: {
-            id: {
-              in: chartIds
-            }
-          },
-          sort: 'timestamp',
-          limit: 100,
-          depth: 1
-        })
-
-        storyCharts = chartsResult.docs
-      }
-
-      // Build timeline events
-      const timelineEvents = []
-
-      // Entry event
-      timelineEvents.push({
-        date: trade.entryDate,
-        type: 'entry',
-        title: 'Position Entry',
-        description: `Entered ${trade.type} position`,
-        details: {
-          price: trade.entryPrice,
-          shares: trade.shares,
-          positionSize: trade.positionSize,
-          initialStop: trade.initialStopLoss,
-          riskAmount: trade.riskAmount,
-          riskPercent: trade.riskPercent
-        }
-      })
-
-      // Stop modification events
-      if (trade.modifiedStops && trade.modifiedStops.length > 0) {
-        trade.modifiedStops.forEach((stop: any, index: number) => {
-          timelineEvents.push({
-            date: stop.date,
-            type: 'stopModified',
-            title: `Stop Loss Modified (#${index + 1})`,
-            description: 'Adjusted stop loss level',
-            details: {
-              previousStop: index === 0 ? trade.initialStopLoss : trade.modifiedStops[index - 1].price,
-              newStop: stop.price,
-              notes: stop.notes
-            }
+          // Fetch the trade with full depth
+          const trade = await req.payload.findByID({
+            collection: 'trades',
+            id: String(tradeId),
+            depth: 2,
           })
-        })
-      }
 
-      // Exit events
-      if (trade.exits && trade.exits.length > 0) {
-        trade.exits.forEach((exit: any, index: number) => {
-          const exitPL = trade.type === 'long' 
-            ? (exit.price - trade.entryPrice) * exit.shares
-            : (trade.entryPrice - exit.price) * exit.shares
+          if (!trade) {
+            return Response.json({ error: 'Trade not found' }, { status: 404 })
+          }
 
+          // Get all related charts if they exist
+          let storyCharts: any[] = []
+          if (trade.relatedCharts && trade.relatedCharts.length > 0) {
+            const chartIds = trade.relatedCharts.map((chart: any) =>
+              typeof chart === 'object' ? chart.id : chart,
+            )
+
+            const chartsResult = await req.payload.find({
+              collection: 'charts',
+              where: {
+                id: {
+                  in: chartIds,
+                },
+              },
+              sort: 'timestamp',
+              limit: 100,
+              depth: 1,
+            })
+
+            storyCharts = chartsResult.docs
+          }
+
+          // Build timeline events
+          const timelineEvents = []
+
+          // Entry event
           timelineEvents.push({
-            date: exit.date,
-            type: 'exit',
-            title: `Position Exit (#${index + 1})`,
-            description: `Exited ${exit.shares} shares`,
+            date: trade.entryDate,
+            type: 'entry',
+            title: 'Position Entry',
+            description: `Entered ${trade.type} position`,
             details: {
-              price: exit.price,
-              shares: exit.shares,
-              reason: exit.reason,
-              profitLoss: exitPL,
-              notes: exit.notes
-            }
+              price: trade.entryPrice,
+              shares: trade.shares,
+              positionSize: trade.positionSize,
+              initialStop: trade.initialStopLoss,
+              riskAmount: trade.riskAmount,
+              riskPercent: trade.riskPercent,
+            },
           })
-        })
-      }
 
-      // Sort events chronologically
-      timelineEvents.sort((a, b) => 
-        new Date(a.date).getTime() - new Date(b.date).getTime()
-      )
+          // Stop modification events
+          if (trade.modifiedStops && trade.modifiedStops.length > 0) {
+            trade.modifiedStops.forEach((stop: any, index: number) => {
+              timelineEvents.push({
+                date: stop.date,
+                type: 'stopModified',
+                title: `Stop Loss Modified (#${index + 1})`,
+                description: 'Adjusted stop loss level',
+                details: {
+                  previousStop:
+                    index === 0
+                      ? trade.initialStopLoss
+                      : (trade.modifiedStops?.[index - 1]?.price ?? undefined),
+                  newStop: stop.price,
+                  notes: stop.notes,
+                },
+              })
+            })
+          }
 
-      // Calculate trade duration
-      const entryDate = new Date(trade.entryDate)
-      const lastEventDate = trade.exits && trade.exits.length > 0
-        ? new Date(Math.max(...trade.exits.map((e: any) => new Date(e.date).getTime())))
-        : new Date()
-      
-      const tradeDuration = Math.floor(
-        (lastEventDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24)
-      )
+          // Exit events
+          if (trade.exits && trade.exits.length > 0) {
+            trade.exits.forEach((exit: any, index: number) => {
+              const exitPL =
+                trade.type === 'long'
+                  ? (exit.price - trade.entryPrice) * exit.shares
+                  : (trade.entryPrice - exit.price) * exit.shares
 
-      // Build story metadata
-      const storyMetadata = {
-        ticker: trade.ticker,
-        tradeType: trade.type,
-        setupType: trade.setupType,
-        status: trade.status,
-        duration: tradeDuration,
-        totalReturn: trade.profitLossAmount || 0,
-        totalReturnPercent: trade.profitLossPercent || 0,
-        rRatio: trade.rRatio || 0,
-        chartCount: storyCharts.length,
-        eventCount: timelineEvents.length
-      }
+              timelineEvents.push({
+                date: exit.date,
+                type: 'exit',
+                title: `Position Exit (#${index + 1})`,
+                description: `Exited ${exit.shares} shares`,
+                details: {
+                  price: exit.price,
+                  shares: exit.shares,
+                  reason: exit.reason,
+                  profitLoss: exitPL,
+                  notes: exit.notes,
+                },
+              })
+            })
+          }
 
-      // Group charts by role
-      const chartsByRole = storyCharts.reduce((acc: any, chart: any) => {
-        const role = chart.tradeStory?.chartRole || 'reference'
-        if (!acc[role]) acc[role] = []
-        acc[role].push(chart)
-        return acc
-      }, {})
+          // Sort events chronologically
+          timelineEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-      return Response.json({
-        success: true,
-        trade,
-        story: {
-          metadata: storyMetadata,
-          timeline: timelineEvents,
-          charts: storyCharts,
-          chartsByRole,
-          notes: trade.notes
+          // Calculate trade duration
+          const entryDate = new Date(trade.entryDate)
+          const lastEventDate =
+            trade.exits && trade.exits.length > 0
+              ? new Date(Math.max(...trade.exits.map((e: any) => new Date(e.date).getTime())))
+              : new Date()
+
+          const tradeDuration = Math.floor(
+            (lastEventDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24),
+          )
+
+          // Build story metadata
+          const storyMetadata = {
+            ticker: trade.ticker,
+            tradeType: trade.type,
+            setupType: trade.setupType,
+            status: trade.status,
+            duration: tradeDuration,
+            totalReturn: trade.profitLossAmount || 0,
+            totalReturnPercent: trade.profitLossPercent || 0,
+            rRatio: trade.rRatio || 0,
+            chartCount: storyCharts.length,
+            eventCount: timelineEvents.length,
+          }
+
+          // Group charts by role
+          const chartsByRole = storyCharts.reduce((acc: any, chart: any) => {
+            const role = chart.tradeStory?.chartRole || 'reference'
+            if (!acc[role]) acc[role] = []
+            acc[role].push(chart)
+            return acc
+          }, {})
+
+          return Response.json({
+            success: true,
+            trade,
+            story: {
+              metadata: storyMetadata,
+              timeline: timelineEvents,
+              charts: storyCharts,
+              chartsByRole,
+              notes: trade.notes,
+            },
+          })
+        } catch (error) {
+          console.error('Error fetching trade story:', error)
+          return Response.json(
+            { success: false, error: 'Failed to fetch trade story' },
+            { status: 500 },
+          )
         }
-      })
-    } catch (error) {
-      console.error('Error fetching trade story:', error)
-      return Response.json(
-        { success: false, error: 'Failed to fetch trade story' },
-        { status: 500 }
-      )
-    }
-  }
-},
-// Add this additional endpoint for updating chart story metadata
-{
-  path: '/:tradeId/story/charts/:chartId',
-  method: 'patch',
-  handler: async (req: PayloadRequest) => {
-    try {
-      const { tradeId, chartId } = req.routeParams || {}
-      const updates = await req.json()
+      },
+    },
+    // Add this additional endpoint for updating chart story metadata
+    {
+      path: '/:tradeId/story/charts/:chartId',
+      method: 'patch',
+      handler: async (req: PayloadRequest) => {
+        try {
+          const { tradeId, chartId } = req.routeParams || {}
+          if (!tradeId || !chartId) {
+            return Response.json({ error: 'Trade ID and Chart ID are required' }, { status: 400 })
+          }
 
-      if (!tradeId || !chartId) {
-        return Response.json({ error: 'Trade ID and Chart ID are required' }, { status: 400 })
-      }
+          if (typeof req.json !== 'function') {
+            return Response.json({ error: 'Request body parser is not available' }, { status: 400 })
+          }
+          const updates = await req.json()
 
-      // Verify the chart belongs to this trade
-      const trade = await req.payload.findByID({
-        collection: 'trades',
-        id: String(tradeId),
-        depth: 0
-      })
+          // verify it belongs
+          const trade = await req.payload.findByID({
+            collection: 'trades',
+            id: String(tradeId),
+            depth: 0,
+          })
+          if (!trade) {
+            return Response.json({ error: 'Trade not found' }, { status: 404 })
+          }
+          const belongs = (trade.relatedCharts || []).some(
+            (c) => (typeof c === 'object' ? c.id : c) === chartId,
+          )
+          if (!belongs) {
+            return Response.json({ error: 'Chart does not belong to this trade' }, { status: 403 })
+          }
 
-      if (!trade) {
-        return Response.json({ error: 'Trade not found' }, { status: 404 })
-      }
+          // **DROP** the <Generic> on update, and cast data to any so TS accepts tradeStory
+          const updatedChart = await req.payload.update({
+            collection: 'charts',
+            id: String(chartId),
+            data: {
+              tradeStory: updates.tradeStory,
+            } as any,
+          })
 
-      const chartBelongsToTrade = trade.relatedCharts?.some((chart: any) => 
-        (typeof chart === 'object' ? chart.id : chart) === chartId
-      )
-
-      if (!chartBelongsToTrade) {
-        return Response.json({ error: 'Chart does not belong to this trade' }, { status: 403 })
-      }
-
-      // Update the chart's trade story metadata
-      const updatedChart = await req.payload.update({
-        collection: 'charts',
-        id: String(chartId),
-        data: {
-          tradeStory: updates.tradeStory
+          return Response.json({ success: true, chart: updatedChart })
+        } catch (error) {
+          console.error('Error updating chart story metadata:', error)
+          return Response.json(
+            { success: false, error: 'Failed to update chart story metadata' },
+            { status: 500 },
+          )
         }
-      })
-
-      return Response.json({
-        success: true,
-        chart: updatedChart
-      })
-    } catch (error) {
-      console.error('Error updating chart story metadata:', error)
-      return Response.json(
-        { success: false, error: 'Failed to update chart story metadata' },
-        { status: 500 }
-      )
-    }
-  }
-}
+      },
+    },
   ],
 }
 

@@ -149,6 +149,76 @@ export const Charts: CollectionConfig = {
             description: "Additional notes that don't fit the categories above",
           },
         },
+        // Add these fields to your existing Charts collection in src/collections/Charts.ts
+
+// Add after the existing fields, before hooks
+{
+  name: 'tradeStory',
+  type: 'group',
+  admin: {
+    description: 'Trade story metadata for timeline features'
+  },
+  fields: [
+    {
+      name: 'chartRole',
+      type: 'select',
+      options: [
+        { label: 'Entry Signal', value: 'entry' },
+        { label: 'Position Management', value: 'management' },
+        { label: 'Stop Adjustment', value: 'stopAdjustment' },
+        { label: 'Exit Signal', value: 'exit' },
+        { label: 'Post-Trade Analysis', value: 'analysis' },
+        { label: 'Market Context', value: 'context' },
+        { label: 'General Reference', value: 'reference' }
+      ],
+      defaultValue: 'reference',
+      admin: {
+        description: 'What role does this chart play in the trade story?'
+      }
+    },
+    {
+      name: 'storySequence',
+      type: 'number',
+      admin: {
+        description: 'Order in the trade story (1, 2, 3...)',
+        step: 1,
+        placeholder: 'Leave empty for automatic ordering by timestamp'
+      }
+    },
+    {
+      name: 'decisionNotes',
+      type: 'textarea',
+      admin: {
+        description: 'What were you thinking at this moment? Decision process, market read, etc.',
+        rows: 3
+      }
+    },
+    {
+      name: 'emotionalState',
+      type: 'select',
+      options: [
+        { label: 'Confident', value: 'confident' },
+        { label: 'Cautious', value: 'cautious' },
+        { label: 'Uncertain', value: 'uncertain' },
+        { label: 'Fearful', value: 'fearful' },
+        { label: 'Greedy', value: 'greedy' },
+        { label: 'Neutral', value: 'neutral' }
+      ],
+      admin: {
+        description: 'Your emotional state when viewing this chart'
+      }
+    },
+    {
+      name: 'marketContext',
+      type: 'textarea',
+      admin: {
+        description: 'Market conditions, news, or sector activity at this time',
+        rows: 2
+      }
+    }
+  ]
+}
+
       ],
       // Migration hook to convert existing notes to the new structure
       hooks: {

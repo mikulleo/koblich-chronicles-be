@@ -736,6 +736,278 @@ export const Trades: CollectionConfig = {
       return Response.json({ message: 'Error calculating trade statistics' }, { status: 500 })
     }
   },
+},
+{
+  path: '/:id/story',
+  method: 'get',
+  handler: async (req: PayloadRequest) => {
+    const tradeId = req.routeParams?.id
+    
+    // Fetch trade with related charts
+    const trade = await req.payload.findByID({
+      collection: 'trades',
+      id: tradeId,
+      depth: 2
+    })
+    
+    // Get all related charts sorted by timestamp
+    const storyCharts = await req.payload.find({
+      collection: 'charts',
+      where: {
+        id: {
+          in: (trade.relatedCharts || []).map(c => typeof c === 'object' ? c.id : c)
+        }
+      },
+      sort: 'timestamp',
+      depth: 1
+    })
+    
+    // Build the story timeline
+    const timeline = {
+      trade,
+      charts: storyCharts.docs,
+      keyEvents: [
+        {
+          date: trade.entryDate,
+          type: 'entry',
+          description: `Entered ${trade.type} position`,
+          price: trade.entryPrice,
+          shares: trade.shares
+        },
+        ...trade.modifiedStops?.map(stop => ({
+          date: stop.date,
+          type: 'stopModified',
+          description: 'Modified stop loss',
+          price: stop.price,
+          notes: stop.notes
+        })) || [],
+        ...trade.exits?.map(exit => ({
+          date: exit.date,
+          type: 'exit',
+          description: `Exited ${exit.shares} shares`,
+          price: exit.price,
+          reason: exit.reason,
+          notes: exit.notes
+        })) || []
+      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    }
+    
+    return Response.json(timeline)
+  }
+},
+{
+  path: '/:id/story',
+  method: 'get',
+  handler: async (req: PayloadRequest) => {
+    try {
+      const tradeId = req.routeParams?.id
+
+      if (!tradeId) {
+        return Response.json({ error: 'Trade ID is required' }, { status: 400 })
+      }
+
+      // Fetch the trade with full depth
+      const trade = await req.payload.findByID({
+        collection: 'trades',
+        id: String(tradeId),
+        depth: 2
+      })
+
+      if (!trade) {
+        return Response.json({ error: 'Trade not found' }, { status: 404 })
+      }
+
+      // Get all related charts if they exist
+      let storyCharts = []
+      if (trade.relatedCharts && trade.relatedCharts.length > 0) {
+        const chartIds = trade.relatedCharts.map((chart: any) => 
+          typeof chart === 'object' ? chart.id : chart
+        )
+
+        const chartsResult = await req.payload.find({
+          collection: 'charts',
+          where: {
+            id: {
+              in: chartIds
+            }
+          },
+          sort: 'timestamp',
+          limit: 100,
+          depth: 1
+        })
+
+        storyCharts = chartsResult.docs
+      }
+
+      // Build timeline events
+      const timelineEvents = []
+
+      // Entry event
+      timelineEvents.push({
+        date: trade.entryDate,
+        type: 'entry',
+        title: 'Position Entry',
+        description: `Entered ${trade.type} position`,
+        details: {
+          price: trade.entryPrice,
+          shares: trade.shares,
+          positionSize: trade.positionSize,
+          initialStop: trade.initialStopLoss,
+          riskAmount: trade.riskAmount,
+          riskPercent: trade.riskPercent
+        }
+      })
+
+      // Stop modification events
+      if (trade.modifiedStops && trade.modifiedStops.length > 0) {
+        trade.modifiedStops.forEach((stop: any, index: number) => {
+          timelineEvents.push({
+            date: stop.date,
+            type: 'stopModified',
+            title: `Stop Loss Modified (#${index + 1})`,
+            description: 'Adjusted stop loss level',
+            details: {
+              previousStop: index === 0 ? trade.initialStopLoss : trade.modifiedStops[index - 1].price,
+              newStop: stop.price,
+              notes: stop.notes
+            }
+          })
+        })
+      }
+
+      // Exit events
+      if (trade.exits && trade.exits.length > 0) {
+        trade.exits.forEach((exit: any, index: number) => {
+          const exitPL = trade.type === 'long' 
+            ? (exit.price - trade.entryPrice) * exit.shares
+            : (trade.entryPrice - exit.price) * exit.shares
+
+          timelineEvents.push({
+            date: exit.date,
+            type: 'exit',
+            title: `Position Exit (#${index + 1})`,
+            description: `Exited ${exit.shares} shares`,
+            details: {
+              price: exit.price,
+              shares: exit.shares,
+              reason: exit.reason,
+              profitLoss: exitPL,
+              notes: exit.notes
+            }
+          })
+        })
+      }
+
+      // Sort events chronologically
+      timelineEvents.sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      )
+
+      // Calculate trade duration
+      const entryDate = new Date(trade.entryDate)
+      const lastEventDate = trade.exits && trade.exits.length > 0
+        ? new Date(Math.max(...trade.exits.map((e: any) => new Date(e.date).getTime())))
+        : new Date()
+      
+      const tradeDuration = Math.floor(
+        (lastEventDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
+
+      // Build story metadata
+      const storyMetadata = {
+        ticker: trade.ticker,
+        tradeType: trade.type,
+        setupType: trade.setupType,
+        status: trade.status,
+        duration: tradeDuration,
+        totalReturn: trade.profitLossAmount || 0,
+        totalReturnPercent: trade.profitLossPercent || 0,
+        rRatio: trade.rRatio || 0,
+        chartCount: storyCharts.length,
+        eventCount: timelineEvents.length
+      }
+
+      // Group charts by role
+      const chartsByRole = storyCharts.reduce((acc: any, chart: any) => {
+        const role = chart.tradeStory?.chartRole || 'reference'
+        if (!acc[role]) acc[role] = []
+        acc[role].push(chart)
+        return acc
+      }, {})
+
+      return Response.json({
+        success: true,
+        trade,
+        story: {
+          metadata: storyMetadata,
+          timeline: timelineEvents,
+          charts: storyCharts,
+          chartsByRole,
+          notes: trade.notes
+        }
+      })
+    } catch (error) {
+      console.error('Error fetching trade story:', error)
+      return Response.json(
+        { success: false, error: 'Failed to fetch trade story' },
+        { status: 500 }
+      )
+    }
+  }
+},
+// Add this additional endpoint for updating chart story metadata
+{
+  path: '/:tradeId/story/charts/:chartId',
+  method: 'patch',
+  handler: async (req: PayloadRequest) => {
+    try {
+      const { tradeId, chartId } = req.routeParams || {}
+      const updates = await req.json()
+
+      if (!tradeId || !chartId) {
+        return Response.json({ error: 'Trade ID and Chart ID are required' }, { status: 400 })
+      }
+
+      // Verify the chart belongs to this trade
+      const trade = await req.payload.findByID({
+        collection: 'trades',
+        id: String(tradeId),
+        depth: 0
+      })
+
+      if (!trade) {
+        return Response.json({ error: 'Trade not found' }, { status: 404 })
+      }
+
+      const chartBelongsToTrade = trade.relatedCharts?.some((chart: any) => 
+        (typeof chart === 'object' ? chart.id : chart) === chartId
+      )
+
+      if (!chartBelongsToTrade) {
+        return Response.json({ error: 'Chart does not belong to this trade' }, { status: 403 })
+      }
+
+      // Update the chart's trade story metadata
+      const updatedChart = await req.payload.update({
+        collection: 'charts',
+        id: String(chartId),
+        data: {
+          tradeStory: updates.tradeStory
+        }
+      })
+
+      return Response.json({
+        success: true,
+        chart: updatedChart
+      })
+    } catch (error) {
+      console.error('Error updating chart story metadata:', error)
+      return Response.json(
+        { success: false, error: 'Failed to update chart story metadata' },
+        { status: 500 }
+      )
+    }
+  }
 }
   ],
 }

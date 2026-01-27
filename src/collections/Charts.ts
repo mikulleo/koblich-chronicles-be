@@ -1,5 +1,5 @@
 // src/collections/Charts.ts
-import { CollectionConfig, PayloadRequest } from 'payload'
+import { CollectionConfig, PayloadRequest, Where } from 'payload'
 import { updateTickerStatsAfterDeleteHook } from '../hooks/updateTickerStatsAfterDelete'
 
 // Helper function to format chart display names
@@ -773,18 +773,7 @@ export const Charts: CollectionConfig = {
         try {
           const { tickerId, startDate, endDate, timeframe, tags } = req.query
 
-          // Build query with proper typing
-          interface ChartQuery {
-            ticker?: { equals: string | number }
-            timestamp?: {
-              greater_than_equal?: Date
-              less_than_equal?: Date
-            }
-            timeframe?: { equals: string }
-            tags?: { in: (string | number)[] }
-          }
-
-          const query: ChartQuery = {}
+          const query: Where = {}
 
           if (tickerId) {
             query.ticker = { equals: tickerId as string | number }

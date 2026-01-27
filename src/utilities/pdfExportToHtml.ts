@@ -65,8 +65,16 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
   const uploadsDir = process.env.PAYLOAD_UPLOADS_DIR || '/app/uploads'
 
   // Launch browser and generate PDF
+  // Container environments (Docker/Railway) need --no-sandbox and other flags
+  // because Chromium's sandbox requires kernel features unavailable in containers
   const browser = await chromium.launch({
     headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
   })
 
   const context = await browser.newContext()

@@ -1,7 +1,13 @@
 import { chromium } from 'playwright'
 import { Payload } from 'payload'
-import fs from 'fs' // changed from 'fs/promises' to use sync methods for template generation
 import path from 'path'
+import fs from 'fs'
+
+// === CONFIGURATION ===
+// Ensure this matches your Railway volume mount path exactly.
+// You mentioned '/app/uloads' initially, but standard is '/app/uploads'.
+// Check your Railway variables if images appear broken.
+const UPLOAD_DIR = process.env.PAYLOAD_UPLOADS_DIR || '/app/uploads'
 
 interface Chart {
   id: string | number
@@ -24,12 +30,10 @@ interface Chart {
   annotatedImage?: { url: string; filename: string }
 }
 
-// Ensure this matches your Railway volume mount
-const UPLOAD_DIR = process.env.PAYLOAD_UPLOADS_DIR || '/app/uploads'
-
 export async function generateChartsPDF(charts: Chart[], _payload: Payload): Promise<Buffer> {
   // 1. Group charts by ticker
   const grouped = new Map<string, Chart[]>()
+
   for (const chart of charts) {
     const ticker = chart.ticker?.symbol || 'Unknown'
     if (!grouped.has(ticker)) {
@@ -38,7 +42,9 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
     grouped.get(ticker)!.push(chart)
   }
 
-  // 2. Generate HTML with Base64 images
+  // 2. Generate HTML
+  // We pass the charts to the generator. The generator will use file:// paths
+  // instead of Base64, keeping the HTML string size small and preventing crashes.
   const html = generateHTML(charts, grouped)
 
   // 3. Launch Browser
@@ -47,9 +53,12 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage', // Vital for Docker/Railway
+      '--disable-dev-shm-usage', // Prevents OOM crashes in Docker
       '--disable-gpu',
-      '--font-render-hinting=none', // Better font rendering in PDF
+      '--font-render-hinting=none',
+      // CRITICAL: Allows the browser to load images from /app/uploads via file:// protocol
+      '--allow-file-access-from-files',
+      '--enable-local-file-accesses',
     ],
   })
 
@@ -57,18 +66,19 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
     const context = await browser.newContext()
     const page = await context.newPage()
 
-    // Since images are now Base64 strings inside the HTML,
-    // we just need to wait for the DOM. No network requests for images happen.
+    // 4. Load Content
+    // We increase timeout to 2 mins because loading 100+ local images can take a moment
     await page.setContent(html, {
       waitUntil: 'load',
-      timeout: 60000,
+      timeout: 120000,
     })
 
+    // 5. Generate PDF
     const pdfBuffer = await page.pdf({
       format: 'A4',
       landscape: true,
       printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' }, // Full bleed for cover/charts
+      margin: { top: '0', right: '0', bottom: '0', left: '0' }, // Full bleed
     })
 
     return pdfBuffer
@@ -78,48 +88,40 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
 }
 
 function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
-  // --- A. Logic Preparation (Fixing undefined variables) ---
+  // --- A. Logic & Pre-calculation ---
 
-  // Calculate stats for the cover page
   const sectors = new Set(charts.map((c) => c.ticker.sector).filter(Boolean))
   const timeframes = new Set(charts.map((c) => c.timeframe))
 
-  // Helper to convert local file to Base64
+  // Helper: Returns a file:// path if the file exists locally, otherwise falls back to URL
   const getImageSrc = (imageObj: { url: string; filename: string }) => {
     try {
       if (!imageObj || !imageObj.filename) return ''
 
-      // Construct absolute path
+      // Construct absolute path on the server/container
       const filePath = path.join(UPLOAD_DIR, imageObj.filename)
 
-      // Check if file exists locally
+      // Check if file exists on disk
       if (fs.existsSync(filePath)) {
-        const fileBuffer = fs.readFileSync(filePath)
-        const ext = path.extname(imageObj.filename).toLowerCase()
-
-        // Simple mime type detection
-        let mimeType = 'image/png'
-        if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg'
-        else if (ext === '.webp') mimeType = 'image/webp'
-
-        return `data:${mimeType};base64,${fileBuffer.toString('base64')}`
+        // Return absolute file path with protocol.
+        // Playwright can read this because we passed --allow-file-access-from-files
+        return `file://${filePath}`
       }
 
-      // Fallback to URL if local file fails (safety net)
+      // Fallback: If not found locally, use the HTTP URL.
+      // Note: In some serverless envs, localhost requests might timeout if the server is busy.
       if (imageObj.url.startsWith('http')) return imageObj.url
       return `http://localhost:3000${imageObj.url}`
     } catch (e) {
-      console.error(`Error reading image: ${imageObj.filename}`, e)
+      console.error(`Error processing image path for ${imageObj.filename}:`, e)
       return ''
     }
   }
 
-  // Generate the HTML for individual chart pages
+  // Generate HTML for chart pages first
   const chartPagesHtml = charts.map((chart, index) => {
     const imageToUse = chart.annotatedImage || chart.image
     const imageSrc = getImageSrc(imageToUse)
-
-    // Create anchors for Table of Contents linking
     const anchorId = `ticker-${chart.ticker.symbol}-${index}`
 
     return `
@@ -168,7 +170,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     `
   })
 
-  // --- B. HTML Template Return ---
+  // --- B. Final HTML Assembly ---
 
   return `
 <!DOCTYPE html>
@@ -236,6 +238,8 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     .chart-page { position: relative; height: 100vh; width: 100vw; page-break-after: always; page-break-inside: avoid; overflow: hidden; background: #0f172a; }
     .chart-image-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
     .chart-image { width: 100%; height: 100%; object-fit: contain; display: block; }
+    
+    /* Overlays */
     .overlay { position: absolute; z-index: 10; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #f1f5f9; }
     .overlay-bl { bottom: 16px; left: 16px; padding: 12px 18px; }
     .overlay-ticker { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: #f8fafc; line-height: 1.1; }
@@ -251,6 +255,8 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     .note-block { border-left: 2px solid rgba(59, 130, 246, 0.5); padding-left: 8px; }
     .note-label { font-size: 9px; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
     .note-text { font-size: 9px; color: #cbd5e1; line-height: 1.4; word-break: break-word; }
+    
+    /* Scrollbar */
     .overlay-tl::-webkit-scrollbar { width: 3px; }
     .overlay-tl::-webkit-scrollbar-track { background: transparent; }
     .overlay-tl::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }

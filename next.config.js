@@ -10,6 +10,7 @@ const NEXT_PUBLIC_SERVER_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   images: {
     remotePatterns: [
       ...[NEXT_PUBLIC_SERVER_URL /* 'https://example.com' */].map((item) => {
@@ -24,6 +25,17 @@ const nextConfig = {
   },
   reactStrictMode: true,
   redirects,
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Externalize pdfkit and its dependencies to prevent bundling issues
+      config.externals = config.externals || []
+      config.externals.push({
+        pdfkit: 'commonjs pdfkit',
+        canvas: 'commonjs canvas',
+      })
+    }
+    return config
+  },
 }
 
 export default withPayload(nextConfig)

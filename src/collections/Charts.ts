@@ -55,7 +55,7 @@ export const Charts: CollectionConfig = {
       },
       hooks: {
         beforeChange: [
-          async ({ data, siblingData, value }) => {
+          async ({ value }) => {
             // Keep existing value during updates
             return value || null
           },
@@ -151,74 +151,74 @@ export const Charts: CollectionConfig = {
         },
         // Add these fields to your existing Charts collection in src/collections/Charts.ts
 
-// Add after the existing fields, before hooks
-{
-  name: 'tradeStory',
-  type: 'group',
-  admin: {
-    description: 'Trade story metadata for timeline features'
-  },
-  fields: [
-    {
-      name: 'chartRole',
-      type: 'select',
-      options: [
-        { label: 'Entry Signal', value: 'entry' },
-        { label: 'Position Management', value: 'management' },
-        { label: 'Stop Adjustment', value: 'stopAdjustment' },
-        { label: 'Exit Signal', value: 'exit' },
-        { label: 'Post-Trade Analysis', value: 'analysis' },
-        { label: 'Market Context', value: 'context' },
-        { label: 'General Reference', value: 'reference' }
-      ],
-      defaultValue: 'reference',
-      admin: {
-        description: 'What role does this chart play in the trade story?'
-      }
-    },
-    {
-      name: 'storySequence',
-      type: 'number',
-      admin: {
-        description: 'Order in the trade story (1, 2, 3...)',
-        step: 1,
-        placeholder: 'Leave empty for automatic ordering by timestamp'
-      }
-    },
-    {
-      name: 'decisionNotes',
-      type: 'textarea',
-      admin: {
-        description: 'What were you thinking at this moment? Decision process, market read, etc.',
-        rows: 3
-      }
-    },
-    {
-      name: 'emotionalState',
-      type: 'select',
-      options: [
-        { label: 'Confident', value: 'confident' },
-        { label: 'Cautious', value: 'cautious' },
-        { label: 'Uncertain', value: 'uncertain' },
-        { label: 'Fearful', value: 'fearful' },
-        { label: 'Greedy', value: 'greedy' },
-        { label: 'Neutral', value: 'neutral' }
-      ],
-      admin: {
-        description: 'Your emotional state when viewing this chart'
-      }
-    },
-    {
-      name: 'marketContext',
-      type: 'textarea',
-      admin: {
-        description: 'Market conditions, news, or sector activity at this time',
-        rows: 2
-      }
-    }
-  ]
-}
-
+        // Add after the existing fields, before hooks
+        {
+          name: 'tradeStory',
+          type: 'group',
+          admin: {
+            description: 'Trade story metadata for timeline features',
+          },
+          fields: [
+            {
+              name: 'chartRole',
+              type: 'select',
+              options: [
+                { label: 'Entry Signal', value: 'entry' },
+                { label: 'Position Management', value: 'management' },
+                { label: 'Stop Adjustment', value: 'stopAdjustment' },
+                { label: 'Exit Signal', value: 'exit' },
+                { label: 'Post-Trade Analysis', value: 'analysis' },
+                { label: 'Market Context', value: 'context' },
+                { label: 'General Reference', value: 'reference' },
+              ],
+              defaultValue: 'reference',
+              admin: {
+                description: 'What role does this chart play in the trade story?',
+              },
+            },
+            {
+              name: 'storySequence',
+              type: 'number',
+              admin: {
+                description: 'Order in the trade story (1, 2, 3...)',
+                step: 1,
+                placeholder: 'Leave empty for automatic ordering by timestamp',
+              },
+            },
+            {
+              name: 'decisionNotes',
+              type: 'textarea',
+              admin: {
+                description:
+                  'What were you thinking at this moment? Decision process, market read, etc.',
+                rows: 3,
+              },
+            },
+            {
+              name: 'emotionalState',
+              type: 'select',
+              options: [
+                { label: 'Confident', value: 'confident' },
+                { label: 'Cautious', value: 'cautious' },
+                { label: 'Uncertain', value: 'uncertain' },
+                { label: 'Fearful', value: 'fearful' },
+                { label: 'Greedy', value: 'greedy' },
+                { label: 'Neutral', value: 'neutral' },
+              ],
+              admin: {
+                description: 'Your emotional state when viewing this chart',
+              },
+            },
+            {
+              name: 'marketContext',
+              type: 'textarea',
+              admin: {
+                description: 'Market conditions, news, or sector activity at this time',
+                rows: 2,
+              },
+            },
+          ],
+        },
       ],
       // Migration hook to convert existing notes to the new structure
       hooks: {
@@ -763,6 +763,112 @@ export const Charts: CollectionConfig = {
         } catch (error) {
           console.error('Error refreshing ticker stats:', error)
           return Response.json({ error: 'Error refreshing ticker stats' }, { status: 500 })
+        }
+      },
+    },
+    {
+      path: '/export',
+      method: 'get',
+      handler: async (req: PayloadRequest) => {
+        try {
+          const { tickerId, startDate, endDate, timeframe, tags } = req.query
+
+          // Build query with proper typing
+          interface ChartQuery {
+            ticker?: { equals: string | number }
+            timestamp?: {
+              greater_than_equal?: Date
+              less_than_equal?: Date
+            }
+            timeframe?: { equals: string }
+            tags?: { in: (string | number)[] }
+          }
+
+          const query: ChartQuery = {}
+
+          if (tickerId) {
+            query.ticker = { equals: tickerId as string | number }
+          }
+
+          if (startDate || endDate) {
+            query.timestamp = {}
+            if (startDate) {
+              query.timestamp.greater_than_equal = new Date(startDate as string)
+            }
+            if (endDate) {
+              query.timestamp.less_than_equal = new Date(endDate as string)
+            }
+          }
+
+          if (timeframe) {
+            query.timeframe = { equals: timeframe as string }
+          }
+
+          if (tags) {
+            const tagArray = Array.isArray(tags) ? tags : [tags]
+            query.tags = { in: tagArray as (string | number)[] }
+          }
+
+          // Fetch charts with full depth for relationships
+          const charts = await req.payload.find({
+            collection: 'charts',
+            where: query,
+            depth: 2,
+            limit: 1000,
+            sort: 'timestamp',
+          })
+
+          if (!charts.docs || charts.docs.length === 0) {
+            return Response.json(
+              { error: 'No charts found matching the criteria' },
+              { status: 404 },
+            )
+          }
+
+          // Import the PDF generation utility
+          const { generateChartsPDF } = await import('@/utilities/pdfExportToHtml')
+
+          // Type for charts with populated relationships
+          interface ChartWithRelations {
+            id: string | number
+            timestamp: string
+            timeframe: string
+            ticker: {
+              id: string | number
+              symbol: string
+              name?: string
+              sector?: string
+            }
+            tags?: Array<{ id: string | number; name: string }>
+            notes?: {
+              setupEntry?: string
+              trend?: string
+              fundamentals?: string
+              other?: string
+            }
+            image: { url: string; filename: string }
+            annotatedImage?: { url: string; filename: string }
+          }
+
+          // Generate PDF (returns Buffer directly with Puppeteer)
+          const pdfBuffer = await generateChartsPDF(
+            charts.docs as ChartWithRelations[],
+            req.payload,
+          )
+
+          const filename = `charts-export-${new Date().toISOString().split('T')[0]}.pdf`
+
+          return new Response(pdfBuffer, {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/pdf',
+              'Content-Disposition': `attachment; filename="${filename}"`,
+              'Content-Length': pdfBuffer.length.toString(),
+            },
+          })
+        } catch (error) {
+          console.error('Export error:', error)
+          return Response.json({ error: 'Failed to export charts' }, { status: 500 })
         }
       },
     },

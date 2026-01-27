@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+media
+public/media
+Dockerfile*
+docker-compose.yml
+.dockerignore
+*.md
+.vscode
+.idea

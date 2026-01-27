@@ -36,7 +36,7 @@ ENV PAYLOAD_UPLOADS_DIR=$PAYLOAD_UPLOADS_DIR
 ENV PAYLOAD_CONFIG_PATH=src/payload.config.ts
 ENV CI=false
 
-RUN pnpm run build
+RUN pnpm run build:prod
 
 # --- Runner ---
 FROM base AS runner

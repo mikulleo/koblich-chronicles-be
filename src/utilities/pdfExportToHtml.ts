@@ -4,9 +4,12 @@ import path from 'path'
 import fs from 'fs'
 
 // === CONFIGURATION ===
-// Ensure this matches your Railway volume mount path exactly.
-// You mentioned '/app/uloads' initially, but standard is '/app/uploads'.
-// Check your Railway variables if images appear broken.
+// Default to looking for local files. Set .env PDF_USE_LOCAL_IMAGES=false to force HTTP/Network mode.
+const USE_LOCAL_IMAGES = process.env.PDF_USE_LOCAL_IMAGES !== 'false'
+
+// CRITICAL: This must match the folder on the server where images are physically stored.
+// On Railway, if your volume is mounted at /app/uploads, keep this.
+// If your Payload config uses 'media', it might be '/app/media'.
 const UPLOAD_DIR = process.env.PAYLOAD_UPLOADS_DIR || '/app/uploads'
 
 interface Chart {
@@ -31,9 +34,22 @@ interface Chart {
 }
 
 export async function generateChartsPDF(charts: Chart[], _payload: Payload): Promise<Buffer> {
-  // 1. Group charts by ticker
-  const grouped = new Map<string, Chart[]>()
+  console.log('--- STARTING PDF GENERATION ---')
+  console.log(`[Config] USE_LOCAL_IMAGES: ${USE_LOCAL_IMAGES}`)
+  console.log(`[Config] UPLOAD_DIR: ${UPLOAD_DIR}`)
+  console.log(`[Config] CWD: ${process.cwd()}`)
 
+  // Debug: Check if UPLOAD_DIR exists and list content samples
+  if (fs.existsSync(UPLOAD_DIR)) {
+    const files = fs.readdirSync(UPLOAD_DIR).slice(0, 5)
+    console.log(`[Debug] Folder ${UPLOAD_DIR} exists. First 5 files:`, files)
+  } else {
+    console.error(
+      `[CRITICAL] Folder ${UPLOAD_DIR} DOES NOT EXIST. Images will fail to load locally.`,
+    )
+  }
+
+  const grouped = new Map<string, Chart[]>()
   for (const chart of charts) {
     const ticker = chart.ticker?.symbol || 'Unknown'
     if (!grouped.has(ticker)) {
@@ -42,21 +58,18 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
     grouped.get(ticker)!.push(chart)
   }
 
-  // 2. Generate HTML
-  // We pass the charts to the generator. The generator will use file:// paths
-  // instead of Base64, keeping the HTML string size small and preventing crashes.
   const html = generateHTML(charts, grouped)
 
-  // 3. Launch Browser
+  console.log('Launching Headless Browser...')
   const browser = await chromium.launch({
     headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage', // Prevents OOM crashes in Docker
+      '--disable-dev-shm-usage',
       '--disable-gpu',
       '--font-render-hinting=none',
-      // CRITICAL: Allows the browser to load images from /app/uploads via file:// protocol
+      // ALLOW FILE ACCESS from /app/uploads
       '--allow-file-access-from-files',
       '--enable-local-file-accesses',
     ],
@@ -66,68 +79,103 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
     const context = await browser.newContext()
     const page = await context.newPage()
 
-    // 4. Load Content
-    // We increase timeout to 2 mins because loading 100+ local images can take a moment
+    // Pipe browser console logs to server terminal
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') console.error(`[Browser Error] ${msg.text()}`)
+    })
+
+    console.log('Setting page content...')
     await page.setContent(html, {
       waitUntil: 'load',
       timeout: 120000,
     })
+    console.log('Page content loaded. Printing PDF...')
 
-    // 5. Generate PDF
     const pdfBuffer = await page.pdf({
       format: 'A4',
       landscape: true,
       printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' }, // Full bleed
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
     })
 
+    console.log(`PDF Generated. Size: ${(pdfBuffer.length / 1024 / 1024).toFixed(2)} MB`)
     return pdfBuffer
+  } catch (error) {
+    console.error('PDF Generation Failed:', error)
+    throw error
   } finally {
     await browser.close()
   }
 }
 
 function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
-  // --- A. Logic & Pre-calculation ---
-
   const sectors = new Set(charts.map((c) => c.ticker.sector).filter(Boolean))
   const timeframes = new Set(charts.map((c) => c.timeframe))
 
-  // Helper: Returns a file:// path if the file exists locally, otherwise falls back to URL
-  const getImageSrc = (imageObj: { url: string; filename: string }) => {
+  const getImageSrc = (imageObj: { url: string; filename: string }, chartId: string | number) => {
     try {
-      if (!imageObj || !imageObj.filename) return ''
+      if (!imageObj) return ''
 
-      // Construct absolute path on the server/container
-      const filePath = path.join(UPLOAD_DIR, imageObj.filename)
+      // Robust Filename Extraction
+      // 1. Try property 'filename'
+      let filename = imageObj.filename
 
-      // Check if file exists on disk
-      if (fs.existsSync(filePath)) {
-        // Return absolute file path with protocol.
-        // Playwright can read this because we passed --allow-file-access-from-files
-        return `file://${filePath}`
+      // 2. If missing, try to extract from URL (e.g., /api/media/file/image.png -> image.png)
+      if (!filename && imageObj.url) {
+        filename = imageObj.url.split('/').pop() || ''
       }
 
-      // Fallback: If not found locally, use the HTTP URL.
-      // Note: In some serverless envs, localhost requests might timeout if the server is busy.
-      if (imageObj.url.startsWith('http')) return imageObj.url
-      return `http://localhost:3000${imageObj.url}`
+      if (!filename) {
+        console.warn(`[Chart ${chartId}] No filename found in object.`)
+        return ''
+      }
+
+      // STRATEGY 1: Local File (Preferred)
+      if (USE_LOCAL_IMAGES) {
+        const filePath = path.join(UPLOAD_DIR, filename)
+
+        if (fs.existsSync(filePath)) {
+          return `file://${filePath}`
+        } else {
+          // Log only the first failure to avoid spamming
+          // console.warn(`[Chart ${chartId}] File not found at: ${filePath}`)
+        }
+      }
+
+      // STRATEGY 2: Fallback to HTTP URL
+      // If local file fails, we try the URL.
+      // Note: If running on same server, this request might time out (deadlock).
+      const httpUrl = imageObj.url.startsWith('http')
+        ? imageObj.url
+        : `http://localhost:3000${imageObj.url}`
+
+      return httpUrl
     } catch (e) {
-      console.error(`Error processing image path for ${imageObj.filename}:`, e)
+      console.error(`[Chart ${chartId}] Error determining image source`, e)
       return ''
     }
   }
 
-  // Generate HTML for chart pages first
+  // Generate HTML (Chart Pages)
   const chartPagesHtml = charts.map((chart, index) => {
     const imageToUse = chart.annotatedImage || chart.image
-    const imageSrc = getImageSrc(imageToUse)
+    const imageSrc = getImageSrc(imageToUse, chart.id)
+
+    // Add debug info directly to the PDF if image breaks
+    const imgTag = imageSrc
+      ? `<img src="${imageSrc}" class="chart-image" alt="Chart" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+         <div style="display:none; color: red; padding: 20px; text-align: center;">
+           FAILED TO LOAD: ${imageSrc}<br>
+           Check server logs for path details.
+         </div>`
+      : `<div style="padding: 20px; text-align: center; color: white;">NO IMAGE SOURCE FOUND</div>`
+
     const anchorId = `ticker-${chart.ticker.symbol}-${index}`
 
     return `
       <div class="chart-page" id="${anchorId}">
         <div class="chart-image-container">
-          <img src="${imageSrc}" class="chart-image" alt="Chart for ${chart.ticker.symbol}">
+          ${imgTag}
         </div>
 
         ${
@@ -170,8 +218,6 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     `
   })
 
-  // --- B. Final HTML Assembly ---
-
   return `
 <!DOCTYPE html>
 <html>
@@ -179,39 +225,12 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
   <meta charset="UTF-8">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Inter', -apple-system, sans-serif; color: #e2e8f0; line-height: 1.4; background: #0f172a; }
 
-    /* ===== COVER PAGE ===== */
-    .cover-page {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background:
-        radial-gradient(ellipse at 20% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
-        radial-gradient(ellipse at 50% 80%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
-        linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-      color: white;
-      page-break-after: always;
-      text-align: center;
-      padding: 60px;
-      position: relative;
-      overflow: hidden;
-    }
-    .cover-page::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-      background-size: 40px 40px;
-      pointer-events: none;
-    }
+    /* Cover Page */
+    .cover-page { height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(ellipse at 20% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%), radial-gradient(ellipse at 50% 80%, rgba(14, 165, 233, 0.1) 0%, transparent 50%), linear-gradient(180deg, #0f172a 0%, #1e293b 100%); color: white; page-break-after: always; text-align: center; padding: 60px; position: relative; overflow: hidden; }
+    .cover-page::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; }
     .cover-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
     .cover-title { font-size: 52px; font-weight: 800; letter-spacing: -1.5px; margin-bottom: 12px; background: linear-gradient(135deg, #f8fafc 0%, #94a3b8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
     .cover-subtitle { font-size: 20px; font-weight: 300; color: #94a3b8; margin-bottom: 48px; letter-spacing: 2px; text-transform: uppercase; }
@@ -221,7 +240,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     .stat-number { font-size: 40px; font-weight: 800; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.1; }
     .stat-label { font-size: 12px; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 500; }
 
-    /* ===== TABLE OF CONTENTS ===== */
+    /* TOC */
     .toc-page { min-height: 100vh; padding: 48px 56px; background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); page-break-after: always; }
     .toc-header { margin-bottom: 36px; padding-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
     .toc-title { font-size: 32px; font-weight: 700; color: #f8fafc; letter-spacing: -0.5px; }
@@ -234,7 +253,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     .toc-meta { font-size: 10px; color: #64748b; display: flex; justify-content: space-between; align-items: center; }
     .toc-chart-count { background: rgba(59, 130, 246, 0.15); color: #60a5fa; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 10px; }
 
-    /* ===== CHART PAGES ===== */
+    /* Charts */
     .chart-page { position: relative; height: 100vh; width: 100vw; page-break-after: always; page-break-inside: avoid; overflow: hidden; background: #0f172a; }
     .chart-image-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
     .chart-image { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -255,8 +274,6 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     .note-block { border-left: 2px solid rgba(59, 130, 246, 0.5); padding-left: 8px; }
     .note-label { font-size: 9px; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
     .note-text { font-size: 9px; color: #cbd5e1; line-height: 1.4; word-break: break-word; }
-    
-    /* Scrollbar */
     .overlay-tl::-webkit-scrollbar { width: 3px; }
     .overlay-tl::-webkit-scrollbar-track { background: transparent; }
     .overlay-tl::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
@@ -268,11 +285,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
       <div class="cover-title">Stock Chart Analysis</div>
       <div class="cover-subtitle">Trading Report</div>
       <div class="cover-date">
-        Generated ${new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        })}
+        Generated ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
       </div>
       <div class="cover-stats">
         <div class="stat-card">
@@ -312,8 +325,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
             <span class="toc-chart-count">${tickerCharts.length} chart${tickerCharts.length > 1 ? 's' : ''}</span>
             ${firstChart.ticker.sector ? `<span>${firstChart.ticker.sector}</span>` : ''}
           </div>
-        </a>
-      `
+        </a>`
         })
         .join('')}
     </div>

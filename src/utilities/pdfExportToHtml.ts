@@ -4,13 +4,9 @@ import path from 'path'
 import fs from 'fs'
 
 // === CONFIGURATION ===
-// Default to looking for local files. Set .env PDF_USE_LOCAL_IMAGES=false to force HTTP/Network mode.
 const USE_LOCAL_IMAGES = process.env.PDF_USE_LOCAL_IMAGES !== 'false'
-
-// CRITICAL: This must match the folder on the server where images are physically stored.
-// On Railway, if your volume is mounted at /app/uploads, keep this.
-// If your Payload config uses 'media', it might be '/app/media'.
 const UPLOAD_DIR = process.env.PAYLOAD_UPLOADS_DIR || '/app/uploads'
+const MAX_RETRIES = 3
 
 interface Chart {
   id: string | number
@@ -37,16 +33,12 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
   console.log('--- STARTING PDF GENERATION ---')
   console.log(`[Config] USE_LOCAL_IMAGES: ${USE_LOCAL_IMAGES}`)
   console.log(`[Config] UPLOAD_DIR: ${UPLOAD_DIR}`)
-  console.log(`[Config] CWD: ${process.cwd()}`)
 
-  // Debug: Check if UPLOAD_DIR exists and list content samples
   if (fs.existsSync(UPLOAD_DIR)) {
     const files = fs.readdirSync(UPLOAD_DIR).slice(0, 5)
     console.log(`[Debug] Folder ${UPLOAD_DIR} exists. First 5 files:`, files)
   } else {
-    console.error(
-      `[CRITICAL] Folder ${UPLOAD_DIR} DOES NOT EXIST. Images will fail to load locally.`,
-    )
+    console.error(`[CRITICAL] Folder ${UPLOAD_DIR} DOES NOT EXIST.`)
   }
 
   const grouped = new Map<string, Chart[]>()
@@ -58,54 +50,75 @@ export async function generateChartsPDF(charts: Chart[], _payload: Payload): Pro
     grouped.get(ticker)!.push(chart)
   }
 
+  // Sort each ticker group by timestamp ascending
+  for (const [, tickerCharts] of grouped) {
+    tickerCharts.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+  }
+
   const html = generateHTML(charts, grouped)
 
-  console.log('Launching Headless Browser...')
-  const browser = await chromium.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--font-render-hinting=none',
-      // ALLOW FILE ACCESS from /app/uploads
-      '--allow-file-access-from-files',
-      '--enable-local-file-accesses',
-    ],
-  })
+  // Retry loop — Chromium in containers can be flaky
+  let lastError: Error | null = null
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    let browser
+    try {
+      console.log(`[PDF] Attempt ${attempt}/${MAX_RETRIES}: Launching Chromium...`)
 
-  try {
-    const context = await browser.newContext()
-    const page = await context.newPage()
+      browser = await chromium.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+          '--font-render-hinting=none',
+          '--allow-file-access-from-files',
+          '--enable-local-file-accesses',
+        ],
+      })
 
-    // Pipe browser console logs to server terminal
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') console.error(`[Browser Error] ${msg.text()}`)
-    })
+      const context = await browser.newContext()
+      const page = await context.newPage()
 
-    console.log('Setting page content...')
-    await page.setContent(html, {
-      waitUntil: 'load',
-      timeout: 120000,
-    })
-    console.log('Page content loaded. Printing PDF...')
+      page.on('console', (msg) => {
+        if (msg.type() === 'error') console.error(`[Browser Error] ${msg.text()}`)
+      })
 
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      landscape: true,
-      printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
-    })
+      console.log('[PDF] Setting page content...')
+      await page.setContent(html, { waitUntil: 'load', timeout: 120000 })
+      console.log('[PDF] Content loaded. Generating PDF...')
 
-    console.log(`PDF Generated. Size: ${(pdfBuffer.length / 1024 / 1024).toFixed(2)} MB`)
-    return pdfBuffer
-  } catch (error) {
-    console.error('PDF Generation Failed:', error)
-    throw error
-  } finally {
-    await browser.close()
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        landscape: true,
+        printBackground: true,
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      })
+
+      console.log(`[PDF] Done. Size: ${(pdfBuffer.length / 1024 / 1024).toFixed(2)} MB`)
+      return pdfBuffer
+    } catch (error) {
+      lastError = error as Error
+      console.error(`[PDF] Attempt ${attempt}/${MAX_RETRIES} failed:`, (error as Error).message)
+      if (attempt < MAX_RETRIES) {
+        const delay = attempt * 2000
+        console.log(`[PDF] Retrying in ${delay}ms...`)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+    } finally {
+      if (browser) {
+        try {
+          await browser.close()
+        } catch {
+          // ignore close errors
+        }
+      }
+    }
   }
+
+  throw lastError || new Error('PDF generation failed after all retries')
 }
 
 function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
@@ -116,39 +129,25 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     try {
       if (!imageObj) return ''
 
-      // Robust Filename Extraction
-      // 1. Try property 'filename'
       let filename = imageObj.filename
-
-      // 2. If missing, try to extract from URL (e.g., /api/media/file/image.png -> image.png)
       if (!filename && imageObj.url) {
         filename = imageObj.url.split('/').pop() || ''
       }
-
       if (!filename) {
-        console.warn(`[Chart ${chartId}] No filename found in object.`)
+        console.warn(`[Chart ${chartId}] No filename found.`)
         return ''
       }
 
-      // STRATEGY 1: Local File (Preferred)
       if (USE_LOCAL_IMAGES) {
         const filePath = path.join(UPLOAD_DIR, filename)
-
         if (fs.existsSync(filePath)) {
           return `file://${filePath}`
-        } else {
-          // Log only the first failure to avoid spamming
-          // console.warn(`[Chart ${chartId}] File not found at: ${filePath}`)
         }
       }
 
-      // STRATEGY 2: Fallback to HTTP URL
-      // If local file fails, we try the URL.
-      // Note: If running on same server, this request might time out (deadlock).
       const httpUrl = imageObj.url.startsWith('http')
         ? imageObj.url
         : `http://localhost:3000${imageObj.url}`
-
       return httpUrl
     } catch (e) {
       console.error(`[Chart ${chartId}] Error determining image source`, e)
@@ -156,24 +155,28 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     }
   }
 
-  // Generate HTML (Chart Pages)
-  const chartPagesHtml = charts.map((chart, index) => {
+  // ── Build chart pages, tracking first chart per ticker for anchor IDs ──
+  const seenTickers = new Set<string>()
+  const chartPagesHtml = charts.map((chart) => {
+    const symbol = chart.ticker.symbol
+    const isFirstForTicker = !seenTickers.has(symbol)
+    if (isFirstForTicker) seenTickers.add(symbol)
+
     const imageToUse = chart.annotatedImage || chart.image
     const imageSrc = getImageSrc(imageToUse, chart.id)
 
-    // Add debug info directly to the PDF if image breaks
     const imgTag = imageSrc
       ? `<img src="${imageSrc}" class="chart-image" alt="Chart" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
          <div style="display:none; color: red; padding: 20px; text-align: center;">
-           FAILED TO LOAD: ${imageSrc}<br>
-           Check server logs for path details.
+           FAILED TO LOAD: ${imageSrc}
          </div>`
-      : `<div style="padding: 20px; text-align: center; color: white;">NO IMAGE SOURCE FOUND</div>`
+      : `<div style="padding: 20px; text-align: center; color: white;">NO IMAGE SOURCE</div>`
 
-    const anchorId = `ticker-${chart.ticker.symbol}-${index}`
+    // Only the first chart for each ticker gets the anchor ID that the TOC links to
+    const anchorAttr = isFirstForTicker ? ` id="ticker-${symbol}"` : ''
 
     return `
-      <div class="chart-page" id="${anchorId}">
+      <div class="chart-page"${anchorAttr}>
         <div class="chart-image-container">
           ${imgTag}
         </div>
@@ -218,6 +221,61 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     `
   })
 
+  // ── Build TOC pages — paginate to avoid overflow ──
+  // First TOC page fits ~16 cards (header takes space), subsequent pages fit ~20
+  const FIRST_PAGE_CARDS = 16
+  const NEXT_PAGE_CARDS = 20
+  const tocEntries = Array.from(grouped.entries())
+
+  const tocPages: [string, Chart[]][][] = []
+  let remaining = [...tocEntries]
+
+  // First page
+  tocPages.push(remaining.splice(0, FIRST_PAGE_CARDS))
+  // Subsequent pages
+  while (remaining.length > 0) {
+    tocPages.push(remaining.splice(0, NEXT_PAGE_CARDS))
+  }
+
+  const tocPagesHtml = tocPages
+    .map((pageEntries, pageIdx) => {
+      const isFirst = pageIdx === 0
+      const cardsHtml = pageEntries
+        .map(([ticker, tickerCharts]) => {
+          const firstChart = tickerCharts[0]!
+          return `
+        <a href="#ticker-${ticker}" class="toc-card">
+          <div class="toc-symbol">${ticker}</div>
+          <div class="toc-name">${firstChart.ticker.name || '--'}</div>
+          <div class="toc-meta">
+            <span class="toc-chart-count">${tickerCharts.length} chart${tickerCharts.length > 1 ? 's' : ''}</span>
+            ${firstChart.ticker.sector ? `<span>${firstChart.ticker.sector}</span>` : ''}
+          </div>
+        </a>`
+        })
+        .join('')
+
+      return `
+  <div class="toc-page">
+    ${
+      isFirst
+        ? `
+    <div class="toc-header">
+      <div class="toc-title">Table of Contents</div>
+      <div class="toc-subtitle">${grouped.size} tickers &middot; ${charts.length} charts &middot; ${timeframes.size} timeframe${timeframes.size !== 1 ? 's' : ''}</div>
+    </div>`
+        : `
+    <div class="toc-header toc-header-cont">
+      <div class="toc-title-cont">Table of Contents (cont.)</div>
+    </div>`
+    }
+    <div class="toc-grid">
+      ${cardsHtml}
+    </div>
+  </div>`
+    })
+    .join('')
+
   return `
 <!DOCTYPE html>
 <html>
@@ -241,12 +299,14 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     .stat-label { font-size: 12px; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 500; }
 
     /* TOC */
-    .toc-page { min-height: 100vh; padding: 48px 56px; background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); page-break-after: always; }
+    .toc-page { height: 100vh; padding: 48px 56px; background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); page-break-after: always; overflow: hidden; }
     .toc-header { margin-bottom: 36px; padding-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    .toc-header-cont { margin-bottom: 28px; padding-bottom: 14px; }
     .toc-title { font-size: 32px; font-weight: 700; color: #f8fafc; letter-spacing: -0.5px; }
+    .toc-title-cont { font-size: 24px; font-weight: 600; color: #94a3b8; }
     .toc-subtitle { font-size: 13px; color: #64748b; margin-top: 6px; }
     .toc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-    .toc-card { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 16px 18px; text-decoration: none; color: inherit; transition: background 0.2s; display: block; }
+    .toc-card { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 16px 18px; text-decoration: none; color: inherit; display: block; }
     .toc-card:hover { background: rgba(255, 255, 255, 0.08); }
     .toc-symbol { font-size: 18px; font-weight: 700; color: #3b82f6; margin-bottom: 4px; }
     .toc-name { font-size: 11px; color: #94a3b8; margin-bottom: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -257,7 +317,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     .chart-page { position: relative; height: 100vh; width: 100vw; page-break-after: always; page-break-inside: avoid; overflow: hidden; background: #0f172a; }
     .chart-image-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
     .chart-image { width: 100%; height: 100%; object-fit: contain; display: block; }
-    
+
     /* Overlays */
     .overlay { position: absolute; z-index: 10; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #f1f5f9; }
     .overlay-bl { bottom: 16px; left: 16px; padding: 12px 18px; }
@@ -308,28 +368,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     </div>
   </div>
 
-  <div class="toc-page">
-    <div class="toc-header">
-      <div class="toc-title">Table of Contents</div>
-      <div class="toc-subtitle">${grouped.size} tickers &middot; ${charts.length} charts &middot; ${timeframes.size} timeframe${timeframes.size !== 1 ? 's' : ''}</div>
-    </div>
-    <div class="toc-grid">
-      ${Array.from(grouped.entries())
-        .map(([ticker, tickerCharts], i) => {
-          const firstChart = tickerCharts[0]!
-          return `
-        <a href="#ticker-${ticker}-${i}" class="toc-card">
-          <div class="toc-symbol">${ticker}</div>
-          <div class="toc-name">${firstChart.ticker.name || '--'}</div>
-          <div class="toc-meta">
-            <span class="toc-chart-count">${tickerCharts.length} chart${tickerCharts.length > 1 ? 's' : ''}</span>
-            ${firstChart.ticker.sector ? `<span>${firstChart.ticker.sector}</span>` : ''}
-          </div>
-        </a>`
-        })
-        .join('')}
-    </div>
-  </div>
+  ${tocPagesHtml}
 
   ${chartPagesHtml.join('')}
 

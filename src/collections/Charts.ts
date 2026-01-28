@@ -770,6 +770,25 @@ export const Charts: CollectionConfig = {
       path: '/export',
       method: 'get',
       handler: async (req: PayloadRequest) => {
+        // Resolve allowed origin for CORS on this binary response
+        const origin = req.headers.get('origin') || ''
+        const allowedOrigins = [
+          process.env.PAYLOAD_PUBLIC_SERVER_URL,
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'https://www.koblich-chronicles.com',
+          'https://koblich-chronicles-fe-3g6s.vercel.app',
+          'https://koblich-chronicles-fe-3g6s-leos-mikulkas-projects.vercel.app',
+        ].filter(Boolean) as string[]
+        const corsOrigin = allowedOrigins.includes(origin) ? origin : ''
+        const corsHeaders: Record<string, string> = corsOrigin
+          ? {
+              'Access-Control-Allow-Origin': corsOrigin,
+              'Access-Control-Allow-Methods': 'GET, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
+            }
+          : {}
+
         try {
           const { tickerId, startDate, endDate, timeframe, tags } = req.query
 
@@ -850,6 +869,7 @@ export const Charts: CollectionConfig = {
           return new Response(pdfBuffer, {
             status: 200,
             headers: {
+              ...corsHeaders,
               'Content-Type': 'application/pdf',
               'Content-Disposition': `attachment; filename="${filename}"`,
               'Content-Length': pdfBuffer.length.toString(),
@@ -857,7 +877,10 @@ export const Charts: CollectionConfig = {
           })
         } catch (error) {
           console.error('Export error:', error)
-          return Response.json({ error: 'Failed to export charts' }, { status: 500 })
+          return Response.json(
+            { error: 'Failed to export charts' },
+            { status: 500, headers: corsHeaders },
+          )
         }
       },
     },

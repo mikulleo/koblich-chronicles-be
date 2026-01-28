@@ -96,14 +96,14 @@ export default buildConfig({
   cors: {
     origins: [
       getServerSideURL(),
-      process.env.PAYLOAD_PUBLIC_SERVER_URL || 'http://localhost:3000',
+      process.env.PAYLOAD_PUBLIC_SERVER_URL,
+      'http://localhost:3000',
       'http://localhost:3001',
       'https://host.plasmicdev.com',
       'https://koblich-chronicles-fe-3g6s-leos-mikulkas-projects.vercel.app',
       'https://koblich-chronicles-fe-3g6s.vercel.app',
       'https://www.koblich-chronicles.com',
-      // Add any additional domains you need
-    ].filter(Boolean),
+    ].filter((v): v is string => Boolean(v)),
     headers: ['Content-Range', 'X-Total-Count'],
   },
   globals: [Header, Footer],

@@ -798,14 +798,13 @@ export const Charts: CollectionConfig = {
             query.ticker = { equals: tickerId as string | number }
           }
 
-          if (startDate || endDate) {
-            query.timestamp = {}
-            if (startDate) {
-              query.timestamp.greater_than_equal = new Date(startDate as string)
-            }
-            if (endDate) {
-              query.timestamp.less_than_equal = new Date(endDate as string)
-            }
+          // Default to current year if no date range specified
+          const effectiveStartDate = startDate || '2025-01-01'
+          const effectiveEndDate = endDate || '2025-12-31'
+
+          query.timestamp = {
+            greater_than_equal: new Date(effectiveStartDate as string),
+            less_than_equal: new Date(effectiveEndDate as string),
           }
 
           if (timeframe) {

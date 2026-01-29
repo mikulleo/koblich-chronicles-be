@@ -228,7 +228,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
   const tocEntries = Array.from(grouped.entries())
 
   const tocPages: [string, Chart[]][][] = []
-  let remaining = [...tocEntries]
+  const remaining = [...tocEntries]
 
   // First page
   tocPages.push(remaining.splice(0, FIRST_PAGE_CARDS))

@@ -6,9 +6,9 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 # Enable corepack + pre-download pnpm with retry to handle transient npm registry outages
 RUN corepack enable pnpm && \
-    (corepack prepare pnpm@latest --activate || \
-     (sleep 5 && corepack prepare pnpm@latest --activate) || \
-     (sleep 10 && corepack prepare pnpm@latest --activate))
+    (corepack prepare pnpm@9.15.4 --activate || \
+     (sleep 5 && corepack prepare pnpm@9.15.4 --activate) || \
+     (sleep 10 && corepack prepare pnpm@9.15.4 --activate))
 
 # --- Dependencies ---
 FROM base AS deps

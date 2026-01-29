@@ -4,7 +4,11 @@ FROM node:22-slim AS base
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable pnpm
+# Enable corepack + pre-download pnpm with retry to handle transient npm registry outages
+RUN corepack enable pnpm && \
+    (corepack prepare pnpm@latest --activate || \
+     (sleep 5 && corepack prepare pnpm@latest --activate) || \
+     (sleep 10 && corepack prepare pnpm@latest --activate))
 
 # --- Dependencies ---
 FROM base AS deps
@@ -12,7 +16,10 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
 COPY .npmrc* ./
-RUN pnpm i --frozen-lockfile
+# Retry pnpm install to handle transient npm registry outages
+RUN pnpm i --frozen-lockfile || \
+    (sleep 5 && pnpm i --frozen-lockfile) || \
+    (sleep 10 && pnpm i --frozen-lockfile)
 
 # --- Builder ---
 FROM base AS builder

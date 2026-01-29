@@ -155,12 +155,19 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
     }
   }
 
-  // ── Build chart pages, tracking first chart per ticker for anchor IDs ──
-  const seenTickers = new Set<string>()
-  const chartPagesHtml = charts.map((chart) => {
+  // ── Build chart pages from grouped map so each ticker's charts are together ──
+  // Flatten grouped map: ticker A (date-sorted) → ticker B (date-sorted) → ...
+  const orderedCharts: Chart[] = []
+  for (const [, tickerCharts] of grouped) {
+    orderedCharts.push(...tickerCharts)
+  }
+
+  let isFirstForCurrentTicker = true
+  let prevSymbol = ''
+  const chartPagesHtml = orderedCharts.map((chart) => {
     const symbol = chart.ticker.symbol
-    const isFirstForTicker = !seenTickers.has(symbol)
-    if (isFirstForTicker) seenTickers.add(symbol)
+    isFirstForCurrentTicker = symbol !== prevSymbol
+    prevSymbol = symbol
 
     const imageToUse = chart.annotatedImage || chart.image
     const imageSrc = getImageSrc(imageToUse, chart.id)
@@ -173,7 +180,7 @@ function generateHTML(charts: Chart[], grouped: Map<string, Chart[]>): string {
       : `<div style="padding: 20px; text-align: center; color: white;">NO IMAGE SOURCE</div>`
 
     // Only the first chart for each ticker gets the anchor ID that the TOC links to
-    const anchorAttr = isFirstForTicker ? ` id="ticker-${symbol}"` : ''
+    const anchorAttr = isFirstForCurrentTicker ? ` id="ticker-${symbol}"` : ''
 
     return `
       <div class="chart-page"${anchorAttr}>

@@ -77,6 +77,10 @@ export interface Config {
     charts: Chart;
     trades: Trade;
     donations: Donation;
+    'mental-check-ins': MentalCheckIn;
+    'mindset-journal': MindsetJournal;
+    'discipline-rules': DisciplineRule;
+    'discipline-log': DisciplineLog;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -98,6 +102,10 @@ export interface Config {
     charts: ChartsSelect<false> | ChartsSelect<true>;
     trades: TradesSelect<false> | TradesSelect<true>;
     donations: DonationsSelect<false> | DonationsSelect<true>;
+    'mental-check-ins': MentalCheckInsSelect<false> | MentalCheckInsSelect<true>;
+    'mindset-journal': MindsetJournalSelect<false> | MindsetJournalSelect<true>;
+    'discipline-rules': DisciplineRulesSelect<false> | DisciplineRulesSelect<true>;
+    'discipline-log': DisciplineLogSelect<false> | DisciplineLogSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -1121,6 +1129,338 @@ export interface Donation {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mental-check-ins".
+ */
+export interface MentalCheckIn {
+  id: number;
+  user: number | User;
+  date: string;
+  /**
+   * Pre-market mental state assessment
+   */
+  preMarket?: {
+    /**
+     * When the pre-market check-in was completed
+     */
+    completedAt?: string | null;
+    ratings?: {
+      /**
+       * How focused do you feel? (1-5)
+       */
+      focus?: number | null;
+      /**
+       * How patient do you feel? (1-5)
+       */
+      patience?: number | null;
+      /**
+       * How confident do you feel? (1-5)
+       */
+      confidence?: number | null;
+      /**
+       * How calm do you feel? (1-5)
+       */
+      calmness?: number | null;
+      /**
+       * How strong is your urgency to make money? (1=none, 5=intense)
+       */
+      urgencyToMakeMoney?: number | null;
+      /**
+       * How much FOMO are you feeling? (1=none, 5=intense)
+       */
+      fomoLevel?: number | null;
+    };
+    /**
+     * Current context that may affect your trading
+     */
+    contextFlags?:
+      | (
+          | 'recent_loss'
+          | 'recent_win'
+          | 'winning_streak'
+          | 'losing_streak'
+          | 'slept_poorly'
+          | 'personal_stress'
+          | 'market_volatile'
+          | 'account_at_high'
+          | 'account_at_low'
+          | 'big_news_day'
+          | 'end_of_week'
+          | 'end_of_month'
+        )[]
+      | null;
+    /**
+     * What you intend to focus on today
+     */
+    intentions?:
+      | (
+          | 'avoid_forcing'
+          | 'stay_patient'
+          | 'stick_to_plan'
+          | 'manage_risk'
+          | 'avoid_fomo'
+          | 'stay_calm'
+          | 'be_selective'
+          | 'protect_gains'
+        )[]
+      | null;
+    /**
+     * What is your biggest risk today?
+     */
+    biggestRisk?:
+      | (
+          | 'overtrading'
+          | 'fomo_entries'
+          | 'revenge_trading'
+          | 'moving_stops'
+          | 'oversizing'
+          | 'not_taking_setups'
+          | 'chasing'
+          | 'impatience'
+        )
+      | null;
+  };
+  /**
+   * Post-market performance review
+   */
+  postMarket?: {
+    /**
+     * When the post-market review was completed
+     */
+    completedAt?: string | null;
+    ratings?: {
+      /**
+       * How well did you stick to your plan? (1-5)
+       */
+      planAdherence?: number | null;
+      /**
+       * How emotionally stable were you? (1-5)
+       */
+      emotionalStability?: number | null;
+      /**
+       * How selective were you with entries? (1-5)
+       */
+      selectivity?: number | null;
+    };
+    behaviors?: {
+      /**
+       * Did you force any trades today?
+       */
+      forcedTrades?: boolean | null;
+      /**
+       * Did you experience FOMO?
+       */
+      feltFomo?: boolean | null;
+      /**
+       * Did you react emotionally after a loss?
+       */
+      reactiveAfterLoss?: boolean | null;
+      /**
+       * Did you become careless after a win?
+       */
+      carelessAfterWin?: boolean | null;
+    };
+    reflections?: {
+      /**
+       * What went well today?
+       */
+      whatWentWell?: string | null;
+      /**
+       * What went poorly today?
+       */
+      whatWentPoorly?: string | null;
+      /**
+       * Key lessons from today
+       */
+      lessonsLearned?: string | null;
+      /**
+       * What to focus on tomorrow
+       */
+      tomorrowFocus?: string | null;
+      /**
+       * Most significant emotional moment and how you handled it
+       */
+      emotionalHighlight?: string | null;
+    };
+    /**
+     * What emotional traps did you actually fall into today?
+     */
+    actualTraps?:
+      | (
+          | 'overtrading'
+          | 'fomo_entries'
+          | 'revenge_trading'
+          | 'moving_stops'
+          | 'oversizing'
+          | 'not_taking_setups'
+          | 'chasing'
+          | 'impatience'
+        )[]
+      | null;
+  };
+  /**
+   * Auto-calculated analysis (populated when both pre and post market are complete)
+   */
+  analysis?: {
+    /**
+     * Difference between pre-market state and post-market performance (lower = more consistent)
+     */
+    stateConsistency?: number | null;
+    /**
+     * Percentage of stated intentions that were followed
+     */
+    intentionAdherence?: number | null;
+    /**
+     * Whether the predicted biggest risk actually occurred
+     */
+    riskPredictionAccuracy?: boolean | null;
+    /**
+     * Detected emotional drift patterns
+     */
+    emotionalDrift?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindset-journal".
+ */
+export interface MindsetJournal {
+  id: number;
+  user: number | User;
+  date: string;
+  /**
+   * Type of journal entry
+   */
+  entryType:
+    | 'pre_market_note'
+    | 'post_market_reflection'
+    | 'mistake_review'
+    | 'trigger_review'
+    | 'weekly_review'
+    | 'rule_violation_review';
+  /**
+   * Title for this journal entry
+   */
+  title: string;
+  /**
+   * Guided prompts auto-filled based on entry type
+   */
+  guidedPrompts?:
+    | {
+        prompt?: string | null;
+        /**
+         * Your response to this prompt
+         */
+        response?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Free-form journaling content
+   */
+  freeContent?: string | null;
+  /**
+   * Emotional traps related to this entry
+   */
+  linkedTraps?:
+    | (
+        | 'overtrading'
+        | 'fomo_entries'
+        | 'revenge_trading'
+        | 'moving_stops'
+        | 'oversizing'
+        | 'not_taking_setups'
+        | 'chasing'
+        | 'impatience'
+      )[]
+    | null;
+  /**
+   * Date this entry refers to (if different from entry date)
+   */
+  linkedDate?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discipline-rules".
+ */
+export interface DisciplineRule {
+  id: number;
+  user: number | User;
+  /**
+   * Name of your trading rule
+   */
+  title: string;
+  /**
+   * Detailed description of the rule and why it matters
+   */
+  description?: string | null;
+  /**
+   * Category of trading rule
+   */
+  category: 'risk_management' | 'entry_rules' | 'exit_rules' | 'position_sizing' | 'emotional' | 'routine';
+  /**
+   * Whether this rule is currently active
+   */
+  isActive?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discipline-log".
+ */
+export interface DisciplineLog {
+  id: number;
+  user: number | User;
+  date: string;
+  /**
+   * Daily rule compliance entries
+   */
+  entries?:
+    | {
+        rule: number | DisciplineRule;
+        status: 'respected' | 'violated';
+        /**
+         * Notes about this rule today
+         */
+        notes?: string | null;
+        /**
+         * Mental state when rule was violated
+         */
+        mentalStateAtViolation?:
+          | ('frustrated' | 'overconfident' | 'fearful' | 'impatient' | 'revenge_trading' | 'fomo' | 'bored' | 'tired')
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Auto-calculated compliance summary
+   */
+  summary?: {
+    totalRules?: number | null;
+    respected?: number | null;
+    violated?: number | null;
+    /**
+     * Percentage of rules respected
+     */
+    complianceRate?: number | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
 export interface Redirect {
@@ -1330,6 +1670,22 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'donations';
         value: number | Donation;
+      } | null)
+    | ({
+        relationTo: 'mental-check-ins';
+        value: number | MentalCheckIn;
+      } | null)
+    | ({
+        relationTo: 'mindset-journal';
+        value: number | MindsetJournal;
+      } | null)
+    | ({
+        relationTo: 'discipline-rules';
+        value: number | DisciplineRule;
+      } | null)
+    | ({
+        relationTo: 'discipline-log';
+        value: number | DisciplineLog;
       } | null)
     | ({
         relationTo: 'redirects';
@@ -1870,6 +2226,134 @@ export interface DonationsSelect<T extends boolean = true> {
         message?: T;
       };
   metadata?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mental-check-ins_select".
+ */
+export interface MentalCheckInsSelect<T extends boolean = true> {
+  user?: T;
+  date?: T;
+  preMarket?:
+    | T
+    | {
+        completedAt?: T;
+        ratings?:
+          | T
+          | {
+              focus?: T;
+              patience?: T;
+              confidence?: T;
+              calmness?: T;
+              urgencyToMakeMoney?: T;
+              fomoLevel?: T;
+            };
+        contextFlags?: T;
+        intentions?: T;
+        biggestRisk?: T;
+      };
+  postMarket?:
+    | T
+    | {
+        completedAt?: T;
+        ratings?:
+          | T
+          | {
+              planAdherence?: T;
+              emotionalStability?: T;
+              selectivity?: T;
+            };
+        behaviors?:
+          | T
+          | {
+              forcedTrades?: T;
+              feltFomo?: T;
+              reactiveAfterLoss?: T;
+              carelessAfterWin?: T;
+            };
+        reflections?:
+          | T
+          | {
+              whatWentWell?: T;
+              whatWentPoorly?: T;
+              lessonsLearned?: T;
+              tomorrowFocus?: T;
+              emotionalHighlight?: T;
+            };
+        actualTraps?: T;
+      };
+  analysis?:
+    | T
+    | {
+        stateConsistency?: T;
+        intentionAdherence?: T;
+        riskPredictionAccuracy?: T;
+        emotionalDrift?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindset-journal_select".
+ */
+export interface MindsetJournalSelect<T extends boolean = true> {
+  user?: T;
+  date?: T;
+  entryType?: T;
+  title?: T;
+  guidedPrompts?:
+    | T
+    | {
+        prompt?: T;
+        response?: T;
+        id?: T;
+      };
+  freeContent?: T;
+  linkedTraps?: T;
+  linkedDate?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discipline-rules_select".
+ */
+export interface DisciplineRulesSelect<T extends boolean = true> {
+  user?: T;
+  title?: T;
+  description?: T;
+  category?: T;
+  isActive?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discipline-log_select".
+ */
+export interface DisciplineLogSelect<T extends boolean = true> {
+  user?: T;
+  date?: T;
+  entries?:
+    | T
+    | {
+        rule?: T;
+        status?: T;
+        notes?: T;
+        mentalStateAtViolation?: T;
+        id?: T;
+      };
+  summary?:
+    | T
+    | {
+        totalRules?: T;
+        respected?: T;
+        violated?: T;
+        complianceRate?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

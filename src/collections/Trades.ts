@@ -93,6 +93,7 @@ export const Trades: CollectionConfig = {
       type: 'relationship',
       relationTo: 'tickers',
       required: true,
+      index: true,
       admin: {
         description: 'Select the ticker symbol for this trade',
       },
@@ -111,6 +112,7 @@ export const Trades: CollectionConfig = {
       name: 'entryDate',
       type: 'date',
       required: true,
+      index: true,
       admin: {
         description: 'Date of trade entry',
         date: {
@@ -364,6 +366,7 @@ export const Trades: CollectionConfig = {
     {
       name: 'status',
       type: 'select',
+      index: true,
       options: [
         { label: 'Open', value: 'open' },
         { label: 'Closed', value: 'closed' },
@@ -533,25 +536,8 @@ export const Trades: CollectionConfig = {
           async ({ value, operation, req }) => {
             // Only set the target position size on trade creation, not on updates
             if (operation === 'create') {
-              // Get user's current target position size preference
-              let defaultTarget = 25000 // Default value
-
-              if (req.user && req.user.id) {
-                try {
-                  const user = await req.payload.findByID({
-                    collection: 'users',
-                    id: req.user.id,
-                  })
-
-                  if (user?.preferences?.targetPositionSize) {
-                    defaultTarget = user.preferences.targetPositionSize
-                  }
-                } catch (error) {
-                  console.error('Error fetching user preferences:', error)
-                }
-              }
-
-              // Return user's target position size or the provided value if it exists
+              // Use req.user directly — already available from auth, no DB query needed
+              const defaultTarget = req.user?.preferences?.targetPositionSize || 25000
               return value || defaultTarget
             }
 
@@ -664,11 +650,12 @@ export const Trades: CollectionConfig = {
             }
           }
 
-          // Fetch ALL trades matching status/ticker (NEW: no date filtering)
+          // Fetch ALL trades matching status/ticker (no date filtering — filtered in-memory by exit date)
           const trades = await req.payload.find({
             collection: 'trades',
             where: query,
             limit: 1000,
+            depth: 0, // No relationship population needed for stats calculation
           })
 
           // NEW: Filter by last exit date instead of entry date

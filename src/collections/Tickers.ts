@@ -132,6 +132,8 @@ export const Tickers: CollectionConfig = {
               },
             },
             sort: '-timestamp',
+            limit: 100,
+            depth: 1,
           })
 
           return Response.json(charts)
@@ -160,6 +162,8 @@ export const Tickers: CollectionConfig = {
               },
             },
             sort: '-entryDate',
+            limit: 100,
+            depth: 1,
           })
 
           return Response.json(trades)

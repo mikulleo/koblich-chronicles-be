@@ -37,8 +37,8 @@ export const Charts: CollectionConfig = {
     group: 'Stock Data',
     listSearchableFields: ['ticker.symbol', 'notes', 'displayTitle'],
     pagination: {
-      defaultLimit: 10000,
-      limits: [10, 25, 50, 100, 200, 500, 1000, 10000],
+      defaultLimit: 100,
+      limits: [10, 25, 50, 100, 200, 500, 1000],
     },
   },
   access: {
@@ -76,6 +76,7 @@ export const Charts: CollectionConfig = {
       type: 'relationship',
       relationTo: 'tickers',
       required: true,
+      index: true,
       admin: {
         description: 'Select the ticker symbol for this chart',
       },
@@ -84,6 +85,7 @@ export const Charts: CollectionConfig = {
       name: 'timestamp',
       type: 'date',
       required: true,
+      index: true,
       admin: {
         description: 'When was this chart captured',
         date: {
@@ -331,6 +333,7 @@ export const Charts: CollectionConfig = {
     {
       name: 'keyboardNavId',
       type: 'number',
+      index: true,
       admin: {
         hidden: true,
         readOnly: true,
@@ -348,32 +351,10 @@ export const Charts: CollectionConfig = {
   hooks: {
     // Combine all hooks into a single property
     afterRead: [
-      async ({ doc, req }) => {
-        // If ticker is present but not populated, try to populate it
-        if (doc.ticker && typeof doc.ticker !== 'object') {
-          try {
-            // Explicitly fetch the ticker to get its symbol
-            const tickerDoc = await req.payload.findByID({
-              collection: 'tickers',
-              id: doc.ticker,
-              depth: 0,
-            })
-
-            if (tickerDoc) {
-              // Create a populated ticker object
-              doc.ticker = {
-                id: doc.ticker,
-                symbol: tickerDoc.symbol,
-              }
-            }
-          } catch (error) {
-            console.error('Error populating ticker in chart:', error)
-          }
-        }
-
-        // Use the helper function to set the display title
+      async ({ doc }) => {
+        // Ticker population is handled by Payload's built-in depth parameter.
+        // No need to manually fetch — just set the display title from whatever is available.
         doc.displayTitle = formatChartTitle(doc)
-
         return doc
       },
     ],
@@ -388,132 +369,67 @@ export const Charts: CollectionConfig = {
       },
     ],
     afterChange: [
-      // NON-BLOCKING version of the ticker update hook that won't cause timeouts
-      async ({ doc, req }) => {
-        // Only run if we have a ticker
+      // Consolidated ticker stats update — single async operation instead of 3 setTimeouts
+      async ({ doc, operation, req }) => {
         if (!doc?.ticker) return doc
 
-        try {
-          // Get ticker ID (handle both populated and non-populated cases)
-          const tickerId = typeof doc.ticker === 'object' ? doc.ticker.id : doc.ticker
+        const tickerId = typeof doc.ticker === 'object' ? doc.ticker.id : doc.ticker
 
-          // Use a non-blocking approach to update the ticker's chart count
-          // This will execute the update in the background and not block the response
-          setTimeout(async () => {
-            try {
-              // Use a simpler, more direct query to count charts for this ticker
-              const countResult = await req.payload.find({
-                collection: 'charts',
-                where: {
-                  ticker: {
-                    equals: tickerId,
-                  },
-                },
-                limit: 0,
-              })
+        // Fire a single background task that batches all ticker updates into one
+        // Using setImmediate-style scheduling to run after the current transaction
+        setTimeout(async () => {
+          try {
+            // 1. Count charts for this ticker (single query, reused for both count and tags)
+            const chartsForTicker = await req.payload.find({
+              collection: 'charts',
+              where: { ticker: { equals: tickerId } },
+              depth: 0,
+              limit: 500,
+            })
 
-              const chartCount = countResult.totalDocs || 0
+            const chartCount = chartsForTicker.totalDocs || 0
 
-              // Update the ticker with a simple, focused update operation
-              await req.payload.update({
-                collection: 'tickers',
-                id: tickerId,
-                data: {
-                  chartsCount: chartCount,
-                },
-                depth: 0,
-              })
-
-              console.log(`Successfully updated ticker ${tickerId} chart count to ${chartCount}`)
-            } catch (err) {
-              console.error(`Background ticker update error for ${tickerId}:`, err)
-            }
-          }, 100) // Small delay to ensure this runs after the current transaction completes
-
-          // Handle tags for the ticker (simplified implementation)
-          if (doc.tags) {
-            setTimeout(async () => {
-              try {
-                // Find all charts for this ticker
-                const chartsForTicker = await req.payload.find({
-                  collection: 'charts',
-                  where: {
-                    ticker: {
-                      equals: tickerId,
-                    },
-                  },
-                  depth: 0,
-                  limit: 200,
-                })
-
-                // Collect all unique tag IDs
-                const allTagIds = new Set<number>()
-                chartsForTicker.docs.forEach((chart) => {
-                  if (chart.tags && Array.isArray(chart.tags)) {
-                    chart.tags.forEach((tag) => {
-                      const tagId = typeof tag === 'object' ? tag.id : tag
-                      if (tagId) {
-                        const numericTagId = typeof tagId === 'string' ? parseInt(tagId, 10) : tagId
-                        if (!isNaN(numericTagId)) {
-                          allTagIds.add(numericTagId)
-                        }
-                      }
-                    })
+            // 2. Collect unique tag IDs from all charts in one pass
+            const allTagIds = new Set<number>()
+            chartsForTicker.docs.forEach((chart) => {
+              if (chart.tags && Array.isArray(chart.tags)) {
+                chart.tags.forEach((tag) => {
+                  const tagId = typeof tag === 'object' ? tag.id : tag
+                  if (tagId) {
+                    const numericTagId = typeof tagId === 'string' ? parseInt(tagId, 10) : tagId
+                    if (!isNaN(numericTagId)) {
+                      allTagIds.add(numericTagId)
+                    }
                   }
                 })
-
-                // Update the ticker with the aggregated tags
-                if (allTagIds.size > 0) {
-                  await req.payload.update({
-                    collection: 'tickers',
-                    id: tickerId,
-                    data: {
-                      tags: Array.from(allTagIds),
-                    },
-                    depth: 0,
-                  })
-                }
-              } catch (error) {
-                console.error('Error updating ticker tags:', error)
               }
-            }, 150)
-          }
-        } catch (error) {
-          console.error('Error in chart afterChange hook:', error)
-        }
+            })
 
-        return doc
-      },
-      // Handle keyboard navigation ID as a separate hook
-      async ({ doc, operation, req }) => {
-        if (operation === 'create') {
-          try {
-            // Update the keyboardNavId for keyboard navigation
-            const count = await req.payload.find({
-              collection: 'charts',
-              limit: 0,
+            // 3. Single ticker update with both chart count and tags
+            await req.payload.update({
+              collection: 'tickers',
+              id: tickerId,
+              data: {
+                chartsCount: chartCount,
+                ...(allTagIds.size > 0 ? { tags: Array.from(allTagIds) } : {}),
+              },
               depth: 0,
             })
 
-            // Use setTimeout to avoid transaction blocking
-            setTimeout(async () => {
-              try {
-                await req.payload.update({
-                  collection: 'charts',
-                  id: doc.id,
-                  data: {
-                    keyboardNavId: count.totalDocs,
-                  },
-                  depth: 0,
-                })
-              } catch (err) {
-                console.error('Error updating keyboardNavId:', err)
-              }
-            }, 200)
+            // 4. Set keyboardNavId on create (uses the count we already have)
+            if (operation === 'create') {
+              await req.payload.update({
+                collection: 'charts',
+                id: doc.id,
+                data: { keyboardNavId: chartCount },
+                depth: 0,
+              })
+            }
           } catch (err) {
-            console.error('Error getting count for keyboardNavId:', err)
+            console.error(`Chart afterChange background update error for ticker ${tickerId}:`, err)
           }
-        }
+        }, 100)
+
         return doc
       },
     ],

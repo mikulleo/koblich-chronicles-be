@@ -34,8 +34,9 @@ export const updateTickerTradeStatsHook: CollectionAfterChangeHook = async ({ do
         },
       },
       limit: 0, // Just need the count
+      depth: 0,
     });
-    
+
     // Calculate total profit/loss for this ticker
     const trades = await req.payload.find({
       collection: 'trades',
@@ -47,7 +48,8 @@ export const updateTickerTradeStatsHook: CollectionAfterChangeHook = async ({ do
           in: ['closed', 'partial'],
         },
       },
-      limit: 500, // Reasonable limit for calculations
+      limit: 500,
+      depth: 0, // No need to populate relationships for P/L calculation
     });
     
     let totalProfitLoss = 0;

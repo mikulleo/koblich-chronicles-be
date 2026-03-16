@@ -17,6 +17,10 @@ import { Tickers } from '@/collections/Tickers'
 import { Charts } from '@/collections/Charts'
 import { Trades } from '@/collections/Trades'
 import { Donations } from '@/collections/Donations'
+import { MentalCheckIns } from '@/collections/MentalCheckIns'
+import { MindsetJournal } from '@/collections/MindsetJournal'
+import { DisciplineRules } from '@/collections/DisciplineRules'
+import { DisciplineLog } from '@/collections/DisciplineLog'
 import { Footer } from '@/Footer/config'
 import { Header } from '@/Header/config'
 import { plugins } from '@/plugins'
@@ -85,14 +89,14 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URI || '',
       // Connection pool configuration to prevent transaction timeouts
-      max: 10, // Maximum number of connections in the pool
+      max: 20, // Maximum number of connections in the pool
       idleTimeoutMillis: 30000, // How long a connection can remain idle before being closed
       connectionTimeoutMillis: 5000, // How long to wait for a connection
       statement_timeout: 30000, // Terminate any statement that takes more than 30 seconds
       allowExitOnIdle: true, // Allow the pool to exit cleanly
     },
   }),
-  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades, Donations],
+  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades, Donations, MentalCheckIns, MindsetJournal, DisciplineRules, DisciplineLog],
   cors: {
     origins: [
       getServerSideURL(),

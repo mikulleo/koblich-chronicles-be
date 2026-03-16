@@ -43,6 +43,7 @@ ENV PAYLOAD_UPLOADS_DIR=$PAYLOAD_UPLOADS_DIR
 ENV PAYLOAD_CONFIG_PATH=src/payload.config.ts
 ENV CI=false
 
+# Run migrations during build (against the production DB) then build Next.js
 RUN pnpm run build:prod
 
 # --- Runner ---
@@ -60,6 +61,14 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# Copy migration files + Payload config so runtime migrations can run if needed
+COPY --from=builder /app/src/migrations ./src/migrations
+COPY --from=builder /app/src/payload.config.ts ./src/payload.config.ts
+COPY --from=builder /app/package.json ./package.json
+
+# Copy node_modules needed for runtime migration commands (payload CLI + db adapter)
+COPY --from=deps /app/node_modules ./node_modules
+
 # Create uploads directory (Railway volume will be mounted here)
 RUN mkdir -p /app/uploads
 
@@ -67,5 +76,7 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV PAYLOAD_CONFIG_PATH=src/payload.config.ts
 
-CMD ["node", "server.js"]
+# Entrypoint: run any pending migrations, then start the server
+CMD sh -c "npx payload migrate --yes 2>&1 || echo 'Migration check completed' && node server.js"

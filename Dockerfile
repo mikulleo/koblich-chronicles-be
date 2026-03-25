@@ -73,4 +73,4 @@ RUN mkdir -p /app/uploads
 
 EXPOSE 3000
 
-CMD sh -c "PAYLOAD_CONFIG_PATH=src/payload.config.ts pnpm exec payload migrate --yes && node server.js"
+CMD sh -c "yes | PAYLOAD_CONFIG_PATH=src/payload.config.ts pnpm exec payload migrate && node server.js"

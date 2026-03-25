@@ -2,15 +2,15 @@ import { CollectionBeforeChangeHook } from 'payload'
 
 const GUIDED_PROMPTS: Record<string, string[]> = {
   pre_market_note: [
-    'What is the market environment like today?',
-    'What setups am I watching and why?',
+    'How ready am I today? Is my mind set right?',
+    'What is my sense of the market environment? What am I watching?',
     'What is my game plan if the market does the opposite of what I expect?',
     'What is my maximum risk for today?',
   ],
   post_market_reflection: [
     'What trades did I take and why?',
-    'Which decisions was I most proud of?',
-    'What would I do differently if I could replay today?',
+    'What decision was I most proud of? What are 1-3 things I did well today?',
+    'What would I do differently if I could replay today? What are 1-3 things I didn\'t do well?',
     'What is the one thing I need to improve most?',
   ],
   mistake_review: [

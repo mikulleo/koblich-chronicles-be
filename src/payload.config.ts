@@ -1,5 +1,7 @@
 // storage-adapter-import-placeholder
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+import nodemailer from 'nodemailer'
 
 import sharp from 'sharp' // sharp-import
 import path from 'path'
@@ -21,8 +23,10 @@ import { MentalCheckIns } from '@/collections/MentalCheckIns'
 import { MindsetJournal } from '@/collections/MindsetJournal'
 import { DisciplineRules } from '@/collections/DisciplineRules'
 import { DisciplineLog } from '@/collections/DisciplineLog'
+import { MindsetEvaluations } from '@/collections/MindsetEvaluations'
 import { Footer } from '@/Footer/config'
 import { Header } from '@/Header/config'
+import { MindsetConfig } from '@/globals/MindsetConfig'
 import { plugins } from '@/plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
 import { lexicalEditor } from '@payloadcms/richtext-lexical' // Claude add
@@ -85,6 +89,22 @@ export default buildConfig({
   },
   // This config helps us configure global or default features that the other editors can inherit
   editor: defaultLexical,
+  email: nodemailerAdapter({
+    defaultFromAddress: process.env.SMTP_FROM_ADDRESS || 'noreply@koblich-chronicles.com',
+    defaultFromName: process.env.SMTP_FROM_NAME || 'Koblich Chronicles',
+    skipVerify: true,
+    transport: process.env.SMTP_HOST
+      ? nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: Number(process.env.SMTP_PORT) || 465,
+          secure: process.env.SMTP_SECURE !== 'false',
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        })
+      : undefined, // Falls back to ethereal test account in dev when SMTP is not configured
+  }),
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URI || '',
@@ -96,7 +116,7 @@ export default buildConfig({
       allowExitOnIdle: true, // Allow the pool to exit cleanly
     },
   }),
-  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades, Donations, MentalCheckIns, MindsetJournal, DisciplineRules, DisciplineLog],
+  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades, Donations, MentalCheckIns, MindsetJournal, DisciplineRules, DisciplineLog, MindsetEvaluations],
   cors: {
     origins: [
       getServerSideURL(),
@@ -110,7 +130,7 @@ export default buildConfig({
     ].filter((v): v is string => Boolean(v)),
     headers: ['Content-Range', 'X-Total-Count'],
   },
-  globals: [Header, Footer],
+  globals: [Header, Footer, MindsetConfig],
   /*meta: {
     titleSuffix: '- Koblich Chronicles',
     favicon: '/assets/favicon.ico',

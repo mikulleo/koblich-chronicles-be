@@ -81,6 +81,7 @@ export interface Config {
     'mindset-journal': MindsetJournal;
     'discipline-rules': DisciplineRule;
     'discipline-log': DisciplineLog;
+    'mindset-evaluations': MindsetEvaluation;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -106,6 +107,7 @@ export interface Config {
     'mindset-journal': MindsetJournalSelect<false> | MindsetJournalSelect<true>;
     'discipline-rules': DisciplineRulesSelect<false> | DisciplineRulesSelect<true>;
     'discipline-log': DisciplineLogSelect<false> | DisciplineLogSelect<true>;
+    'mindset-evaluations': MindsetEvaluationsSelect<false> | MindsetEvaluationsSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -121,10 +123,12 @@ export interface Config {
   globals: {
     header: Header;
     footer: Footer;
+    'mindset-config': MindsetConfig;
   };
   globalsSelect: {
     header: HeaderSelect<false> | HeaderSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
+    'mindset-config': MindsetConfigSelect<false> | MindsetConfigSelect<true>;
   };
   locale: null;
   user: User & {
@@ -412,6 +416,10 @@ export interface Category {
 export interface User {
   id: number;
   name?: string | null;
+  /**
+   * ISO country code (e.g. US, GB, CZ)
+   */
+  country?: string | null;
   roles: ('admin' | 'user')[];
   preferences?: {
     defaultTimeframe?: ('all' | 'year' | 'month' | 'week' | 'last30') | null;
@@ -1461,6 +1469,106 @@ export interface DisciplineLog {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindset-evaluations".
+ */
+export interface MindsetEvaluation {
+  id: number;
+  user: number | User;
+  date: string;
+  evaluationType: 'daily_post_market' | 'weekly_summary' | 'on_demand';
+  /**
+   * Snapshot of input data used for this evaluation
+   */
+  inputSnapshot?: {
+    checkInId?: string | null;
+    disciplineLogId?: string | null;
+    /**
+     * Hash of input data for deduplication
+     */
+    dataHash?: string | null;
+  };
+  /**
+   * Deterministic analysis snapshot from the check-in
+   */
+  deterministicAnalysis?: {
+    stateConsistency?: number | null;
+    intentionAdherence?: number | null;
+    riskPredictionAccuracy?: boolean | null;
+    emotionalDrift?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+  /**
+   * AI-generated coaching evaluation
+   */
+  aiAnalysis?: {
+    coachingFeedback?: string | null;
+    patternsIdentified?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    actionableInsights?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    riskAlerts?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    strengthsHighlighted?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    focusForTomorrow?: string | null;
+    /**
+     * Overall mental performance score (1-10)
+     */
+    overallScore?: number | null;
+  };
+  /**
+   * API usage tracking
+   */
+  tokenUsage?: {
+    inputTokens?: number | null;
+    outputTokens?: number | null;
+    /**
+     * Estimated cost in USD
+     */
+    estimatedCost?: number | null;
+  };
+  status: 'pending' | 'completed' | 'failed' | 'rate_limited';
+  errorMessage?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
 export interface Redirect {
@@ -1686,6 +1794,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'discipline-log';
         value: number | DisciplineLog;
+      } | null)
+    | ({
+        relationTo: 'mindset-evaluations';
+        value: number | MindsetEvaluation;
       } | null)
     | ({
         relationTo: 'redirects';
@@ -2055,6 +2167,7 @@ export interface CategoriesSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  country?: T;
   roles?: T;
   preferences?:
     | T
@@ -2354,6 +2467,52 @@ export interface DisciplineLogSelect<T extends boolean = true> {
         violated?: T;
         complianceRate?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindset-evaluations_select".
+ */
+export interface MindsetEvaluationsSelect<T extends boolean = true> {
+  user?: T;
+  date?: T;
+  evaluationType?: T;
+  inputSnapshot?:
+    | T
+    | {
+        checkInId?: T;
+        disciplineLogId?: T;
+        dataHash?: T;
+      };
+  deterministicAnalysis?:
+    | T
+    | {
+        stateConsistency?: T;
+        intentionAdherence?: T;
+        riskPredictionAccuracy?: T;
+        emotionalDrift?: T;
+      };
+  aiAnalysis?:
+    | T
+    | {
+        coachingFeedback?: T;
+        patternsIdentified?: T;
+        actionableInsights?: T;
+        riskAlerts?: T;
+        strengthsHighlighted?: T;
+        focusForTomorrow?: T;
+        overallScore?: T;
+      };
+  tokenUsage?:
+    | T
+    | {
+        inputTokens?: T;
+        outputTokens?: T;
+        estimatedCost?: T;
+      };
+  status?: T;
+  errorMessage?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2671,6 +2830,89 @@ export interface Footer {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindset-config".
+ */
+export interface MindsetConfig {
+  id: number;
+  /**
+   * Tunable thresholds for the deterministic analysis engine
+   */
+  deterministicThresholds?: {
+    /**
+     * FOMO level at or above which fomo-driven entries drift is detected (default: 4)
+     */
+    fomoThreshold?: number | null;
+    /**
+     * Urgency level at or above which urgency-driven overtrading drift is detected (default: 4)
+     */
+    urgencyThreshold?: number | null;
+    /**
+     * Confidence level at or above which overconfidence drift is detected (default: 5)
+     */
+    confidenceOverThreshold?: number | null;
+    /**
+     * Minimum planAdherence to count "stick_to_plan" intention as kept (default: 4)
+     */
+    planAdherenceMinimum?: number | null;
+    /**
+     * Minimum selectivity to count "stay_patient" intention as kept (default: 3)
+     */
+    selectivityMinimum?: number | null;
+    /**
+     * Minimum selectivity to count "be_selective" intention as kept (default: 4)
+     */
+    selectivityStrictMinimum?: number | null;
+    /**
+     * Minimum emotionalStability to count "stay_calm" intention as kept (default: 3)
+     */
+    emotionalStabilityMinimum?: number | null;
+    /**
+     * Weight applied to pre-market positive ratings in state consistency calculation (default: 1.0)
+     */
+    positiveWeight?: number | null;
+    /**
+     * Weight applied to pre-market negative ratings in state consistency calculation (default: 1.0)
+     */
+    negativeWeight?: number | null;
+  };
+  /**
+   * Configuration for AI-powered coaching evaluations
+   */
+  aiConfig?: {
+    /**
+     * Enable AI-powered mindset evaluations
+     */
+    enabled?: boolean | null;
+    /**
+     * Claude model to use for evaluations
+     */
+    model?: ('claude-sonnet-4-20250514' | 'claude-opus-4-20250514') | null;
+    /**
+     * Maximum tokens for AI response (default: 1500)
+     */
+    maxTokens?: number | null;
+    /**
+     * Temperature for AI generation (0=deterministic, 1=creative, default: 0.7)
+     */
+    temperature?: number | null;
+    /**
+     * Number of past days to include in AI context (default: 7)
+     */
+    lookbackDays?: number | null;
+    /**
+     * Maximum AI evaluations per user per day (default: 10)
+     */
+    dailyRateLimit?: number | null;
+    /**
+     * Optional: Override the default system prompt for AI evaluations. Leave empty to use the built-in trading psychology coach persona.
+     */
+    systemPromptOverride?: string | null;
+  };
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "header_select".
  */
 export interface HeaderSelect<T extends boolean = true> {
@@ -2710,6 +2952,39 @@ export interface FooterSelect<T extends boolean = true> {
               label?: T;
             };
         id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "mindset-config_select".
+ */
+export interface MindsetConfigSelect<T extends boolean = true> {
+  deterministicThresholds?:
+    | T
+    | {
+        fomoThreshold?: T;
+        urgencyThreshold?: T;
+        confidenceOverThreshold?: T;
+        planAdherenceMinimum?: T;
+        selectivityMinimum?: T;
+        selectivityStrictMinimum?: T;
+        emotionalStabilityMinimum?: T;
+        positiveWeight?: T;
+        negativeWeight?: T;
+      };
+  aiConfig?:
+    | T
+    | {
+        enabled?: T;
+        model?: T;
+        maxTokens?: T;
+        temperature?: T;
+        lookbackDays?: T;
+        dailyRateLimit?: T;
+        systemPromptOverride?: T;
       };
   updatedAt?: T;
   createdAt?: T;

@@ -179,11 +179,11 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"created_at" timestamp(3) with time zone
   );
   
-  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN "mental_check_ins_id" integer;
-  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN "mindset_journal_id" integer;
-  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN "discipline_rules_id" integer;
-  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN "discipline_log_id" integer;
-  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN "mindset_evaluations_id" integer;
+  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "mental_check_ins_id" integer;
+  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "mindset_journal_id" integer;
+  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "discipline_rules_id" integer;
+  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "discipline_log_id" integer;
+  ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "mindset_evaluations_id" integer;
   DO $$ BEGIN
    ALTER TABLE "mental_check_ins_pre_market_context_flags" ADD CONSTRAINT "mental_check_ins_pre_market_context_flags_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."mental_check_ins"("id") ON DELETE cascade ON UPDATE no action;
   EXCEPTION

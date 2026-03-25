@@ -64,7 +64,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/payload-types.ts ./payload-types.ts
+COPY --from=builder /app/src/payload-types.ts ./src/payload-types.ts
 
 # Runtime deps for payload migrate
 COPY --from=deps /app/node_modules ./node_modules

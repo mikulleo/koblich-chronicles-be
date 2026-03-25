@@ -522,7 +522,7 @@ export const MentalCheckIns: CollectionConfig = {
         const trapCounts: Record<string, number> = {}
         const driftCounts: Record<string, number> = {}
         const behaviorCounts: Record<string, number> = {}
-        let totalCompleteDays = completeDocs.length
+        const totalCompleteDays = completeDocs.length
 
         for (const doc of completeDocs) {
           for (const trap of doc.postMarket?.actualTraps || []) {

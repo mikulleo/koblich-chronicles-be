@@ -1,5 +1,4 @@
 # --- Base ---
-# Use Debian-slim (not Alpine) — Playwright Chromium requires glibc + system libs
 FROM node:22-slim AS base
 
 ENV PNPM_HOME="/pnpm"
@@ -28,7 +27,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build-time args — Railway passes env vars as build args
 ARG DATABASE_URI
 ARG PAYLOAD_SECRET
 ARG NEXT_PUBLIC_SERVER_URL
@@ -43,10 +41,7 @@ ENV PAYLOAD_UPLOADS_DIR=$PAYLOAD_UPLOADS_DIR
 ENV PAYLOAD_CONFIG_PATH=src/payload.config.ts
 ENV CI=false
 
-# Generate fresh Payload types before building
 RUN pnpm exec payload generate:types
-
-# Build app only (no migrations during image build)
 RUN pnpm run build:prod
 
 # --- Runner ---
@@ -58,27 +53,24 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV PAYLOAD_CONFIG_PATH=src/payload.config.ts
 
-# Install Playwright Chromium + system dependencies
 RUN npx -y playwright@1.57.0 install --with-deps chromium
 
-# Copy Next.js standalone output
+# Next.js standalone
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Copy Payload files needed at runtime
-COPY --from=builder /app/src/migrations ./src/migrations
-COPY --from=builder /app/src/payload.config.ts ./src/payload.config.ts
+# Copy full source + tsconfig so Payload runtime migrations can resolve config imports
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/src/payload-types.ts ./src/payload-types.ts
+COPY --from=builder /app/payload-types.ts ./payload-types.ts
 
-# Copy runtime dependencies
+# Runtime deps for payload migrate
 COPY --from=deps /app/node_modules ./node_modules
 
-# Create uploads directory (Railway volume can be mounted here)
 RUN mkdir -p /app/uploads
 
 EXPOSE 3000
 
-# Run pending migrations on container start, then start server
-CMD sh -c "pnpm exec payload migrate --yes && node server.js"
+CMD sh -c "PAYLOAD_CONFIG_PATH=src/payload.config.ts pnpm exec payload migrate --yes && node server.js"

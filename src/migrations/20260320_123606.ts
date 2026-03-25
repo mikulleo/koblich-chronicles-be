@@ -2,18 +2,18 @@ import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
 
 export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
-   CREATE TYPE "public"."enum_mental_check_ins_pre_market_context_flags" AS ENUM('recent_loss', 'recent_win', 'winning_streak', 'losing_streak', 'slept_poorly', 'personal_stress', 'market_volatile', 'account_at_high', 'account_at_low', 'big_news_day', 'end_of_week', 'end_of_month');
-  CREATE TYPE "public"."enum_mental_check_ins_pre_market_intentions" AS ENUM('avoid_forcing', 'stay_patient', 'stick_to_plan', 'manage_risk', 'avoid_fomo', 'stay_calm', 'be_selective', 'protect_gains');
-  CREATE TYPE "public"."enum_mental_check_ins_post_market_actual_traps" AS ENUM('overtrading', 'fomo_entries', 'revenge_trading', 'moving_stops', 'oversizing', 'not_taking_setups', 'chasing', 'impatience');
-  CREATE TYPE "public"."enum_mental_check_ins_pre_market_biggest_risk" AS ENUM('overtrading', 'fomo_entries', 'revenge_trading', 'moving_stops', 'oversizing', 'not_taking_setups', 'chasing', 'impatience');
-  CREATE TYPE "public"."enum_mindset_journal_linked_traps" AS ENUM('overtrading', 'fomo_entries', 'revenge_trading', 'moving_stops', 'oversizing', 'not_taking_setups', 'chasing', 'impatience');
-  CREATE TYPE "public"."enum_mindset_journal_entry_type" AS ENUM('pre_market_note', 'post_market_reflection', 'mistake_review', 'trigger_review', 'weekly_review', 'rule_violation_review');
-  CREATE TYPE "public"."enum_discipline_rules_category" AS ENUM('risk_management', 'entry_rules', 'exit_rules', 'position_sizing', 'emotional', 'routine');
-  CREATE TYPE "public"."enum_discipline_log_entries_status" AS ENUM('respected', 'violated');
-  CREATE TYPE "public"."enum_discipline_log_entries_mental_state_at_violation" AS ENUM('frustrated', 'overconfident', 'fearful', 'impatient', 'revenge_trading', 'fomo', 'bored', 'tired');
-  CREATE TYPE "public"."enum_mindset_evaluations_evaluation_type" AS ENUM('daily_post_market', 'weekly_summary', 'on_demand');
-  CREATE TYPE "public"."enum_mindset_evaluations_status" AS ENUM('pending', 'completed', 'failed', 'rate_limited');
-  CREATE TYPE "public"."enum_mindset_config_ai_config_model" AS ENUM('claude-sonnet-4-20250514', 'claude-opus-4-20250514');
+   DO $$ BEGIN CREATE TYPE "public"."enum_mental_check_ins_pre_market_context_flags" AS ENUM('recent_loss', 'recent_win', 'winning_streak', 'losing_streak', 'slept_poorly', 'personal_stress', 'market_volatile', 'account_at_high', 'account_at_low', 'big_news_day', 'end_of_week', 'end_of_month'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_mental_check_ins_pre_market_intentions" AS ENUM('avoid_forcing', 'stay_patient', 'stick_to_plan', 'manage_risk', 'avoid_fomo', 'stay_calm', 'be_selective', 'protect_gains'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_mental_check_ins_post_market_actual_traps" AS ENUM('overtrading', 'fomo_entries', 'revenge_trading', 'moving_stops', 'oversizing', 'not_taking_setups', 'chasing', 'impatience'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_mental_check_ins_pre_market_biggest_risk" AS ENUM('overtrading', 'fomo_entries', 'revenge_trading', 'moving_stops', 'oversizing', 'not_taking_setups', 'chasing', 'impatience'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_mindset_journal_linked_traps" AS ENUM('overtrading', 'fomo_entries', 'revenge_trading', 'moving_stops', 'oversizing', 'not_taking_setups', 'chasing', 'impatience'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_mindset_journal_entry_type" AS ENUM('pre_market_note', 'post_market_reflection', 'mistake_review', 'trigger_review', 'weekly_review', 'rule_violation_review'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_discipline_rules_category" AS ENUM('risk_management', 'entry_rules', 'exit_rules', 'position_sizing', 'emotional', 'routine'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_discipline_log_entries_status" AS ENUM('respected', 'violated'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_discipline_log_entries_mental_state_at_violation" AS ENUM('frustrated', 'overconfident', 'fearful', 'impatient', 'revenge_trading', 'fomo', 'bored', 'tired'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_mindset_evaluations_evaluation_type" AS ENUM('daily_post_market', 'weekly_summary', 'on_demand'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_mindset_evaluations_status" AS ENUM('pending', 'completed', 'failed', 'rate_limited'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN CREATE TYPE "public"."enum_mindset_config_ai_config_model" AS ENUM('claude-sonnet-4-20250514', 'claude-opus-4-20250514'); EXCEPTION WHEN duplicate_object THEN null; END $$;
   CREATE TABLE IF NOT EXISTS "mental_check_ins_pre_market_context_flags" (
   	"order" integer NOT NULL,
   	"parent_id" integer NOT NULL,

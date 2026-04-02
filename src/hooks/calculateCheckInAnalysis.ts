@@ -149,10 +149,21 @@ export const calculateCheckInAnalysis: CollectionBeforeChangeHook = async ({ dat
     ? Math.round((intentionsKept / intentionsTotal) * 100)
     : null
 
-  // 3. Risk prediction accuracy: was biggestRisk in actualTraps?
-  const riskPredictionAccuracy = preMarket.biggestRisk
-    ? actualTraps.includes(preMarket.biggestRisk)
-    : null
+  // 3. Risk prediction: nuanced comparison of pre-market risk vs post-market traps
+  const hadRisk = !!preMarket.biggestRisk
+  const hadTraps = actualTraps.length > 0
+  let riskPredictionAccuracy: string | null = null
+  if (hadRisk && hadTraps) {
+    riskPredictionAccuracy = actualTraps.includes(preMarket.biggestRisk!)
+      ? 'accurate'        // predicted risk matched a trap that occurred
+      : 'inaccurate'      // predicted a different risk than what happened
+  } else if (hadRisk && !hadTraps) {
+    riskPredictionAccuracy = 'worry_not_fulfilled' // worried but nothing happened
+  } else if (!hadRisk && !hadTraps) {
+    riskPredictionAccuracy = 'emotionally_set'     // no risk predicted, no traps — grounded
+  } else if (!hadRisk && hadTraps) {
+    riskPredictionAccuracy = 'blind_spot'          // traps occurred but weren't predicted
+  }
 
   // 4. Emotional drift patterns (using configurable thresholds)
   const driftPatterns: string[] = []

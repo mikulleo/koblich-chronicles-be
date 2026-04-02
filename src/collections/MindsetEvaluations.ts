@@ -141,7 +141,16 @@ export const MindsetEvaluations: CollectionConfig = {
         },
         {
           name: 'riskPredictionAccuracy',
-          type: 'checkbox',
+          type: 'select',
+          dbName: 'eval_risk_prediction',
+          enumName: 'eval_risk_prediction',
+          options: [
+            { label: 'Accurate', value: 'accurate' },
+            { label: 'Inaccurate', value: 'inaccurate' },
+            { label: 'Worry Not Fulfilled', value: 'worry_not_fulfilled' },
+            { label: 'Emotionally Set', value: 'emotionally_set' },
+            { label: 'Blind Spot', value: 'blind_spot' },
+          ],
           admin: { readOnly: true },
         },
         {
@@ -743,7 +752,14 @@ function formatCheckInDetail(ci: AnyCollection, label: string): string[] {
     lines.push(`#### Analysis:`)
     lines.push(`- State Drift: ${ci.analysis.stateConsistency ?? 'N/A'}`)
     lines.push(`- Intention Adherence: ${ci.analysis.intentionAdherence ?? 'N/A'}%`)
-    lines.push(`- Risk Prediction Accurate: ${ci.analysis.riskPredictionAccuracy ?? 'N/A'}`)
+    const riskLabels: Record<string, string> = {
+      accurate: 'Accurate',
+      inaccurate: 'Inaccurate',
+      worry_not_fulfilled: 'Worry Not Fulfilled',
+      emotionally_set: 'Emotionally Set',
+      blind_spot: 'Blind Spot',
+    }
+    lines.push(`- Risk Prediction: ${riskLabels[ci.analysis.riskPredictionAccuracy] ?? 'N/A'}`)
     if (ci.analysis.emotionalDrift?.length > 0) {
       lines.push(`- Drift Patterns: ${ci.analysis.emotionalDrift.join(', ')}`)
     }

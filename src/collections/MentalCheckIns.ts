@@ -317,10 +317,19 @@ export const MentalCheckIns: CollectionConfig = {
         },
         {
           name: 'riskPredictionAccuracy',
-          type: 'checkbox',
+          type: 'select',
+          dbName: 'checkin_risk_prediction',
+          enumName: 'checkin_risk_prediction',
+          options: [
+            { label: 'Accurate', value: 'accurate' },
+            { label: 'Inaccurate', value: 'inaccurate' },
+            { label: 'Worry Not Fulfilled', value: 'worry_not_fulfilled' },
+            { label: 'Emotionally Set', value: 'emotionally_set' },
+            { label: 'Blind Spot', value: 'blind_spot' },
+          ],
           admin: {
             readOnly: true,
-            description: 'Whether the predicted biggest risk actually occurred',
+            description: 'Risk prediction outcome based on pre-market risk vs post-market traps',
           },
         },
         {
@@ -379,8 +388,7 @@ export const MentalCheckIns: CollectionConfig = {
         let intentionCount = 0
         let totalStateConsistency = 0
         let consistencyCount = 0
-        let riskPredictions = 0
-        let riskCorrect = 0
+        const riskOutcomeCounts: Record<string, number> = {}
 
         for (const doc of docs) {
           // Count traps
@@ -406,9 +414,13 @@ export const MentalCheckIns: CollectionConfig = {
             totalStateConsistency += doc.analysis.stateConsistency
             consistencyCount++
           }
-          if (doc.analysis?.riskPredictionAccuracy !== undefined) {
-            riskPredictions++
-            if (doc.analysis.riskPredictionAccuracy) riskCorrect++
+          if (doc.analysis?.riskPredictionAccuracy != null) {
+            // Handle legacy boolean values: true → accurate, false → inaccurate
+            const raw = doc.analysis.riskPredictionAccuracy
+            const outcome = raw === true ? 'accurate' : raw === false ? 'inaccurate' : (raw as string)
+            if (outcome) {
+              riskOutcomeCounts[outcome] = (riskOutcomeCounts[outcome] || 0) + 1
+            }
           }
 
           // Count drift patterns
@@ -427,7 +439,14 @@ export const MentalCheckIns: CollectionConfig = {
           driftPatterns,
           averageIntentionAdherence: intentionCount > 0 ? Math.round(totalIntentionAdherence / intentionCount) : null,
           averageStateConsistency: consistencyCount > 0 ? Math.round(totalStateConsistency / consistencyCount * 100) / 100 : null,
-          riskPredictionRate: riskPredictions > 0 ? Math.round((riskCorrect / riskPredictions) * 100) : null,
+          riskOutcomeCounts,
+          riskPredictionRate: (() => {
+            const total = Object.values(riskOutcomeCounts).reduce((a, b) => a + b, 0)
+            const accurate = riskOutcomeCounts['accurate'] || 0
+            const emotionallySet = riskOutcomeCounts['emotionally_set'] || 0
+            const positive = accurate + emotionallySet
+            return total > 0 ? Math.round((positive / total) * 100) : null
+          })(),
           dailyData: docs.map((doc) => ({
             date: doc.date,
             preMarketRatings: doc.preMarket?.ratings,
@@ -484,7 +503,15 @@ export const MentalCheckIns: CollectionConfig = {
           }
           if (analysis.intentionAdherence === 100) todayInsights.strengths.push('Perfect intention adherence — you followed through on every intention you set')
           else if (analysis.intentionAdherence >= 75) todayInsights.strengths.push(`You followed through on ${analysis.intentionAdherence}% of your stated intentions`)
-          if (analysis.riskPredictionAccuracy === true) todayInsights.strengths.push('Your risk prediction was accurate — good self-awareness')
+          // Handle legacy boolean values: true → accurate, false → inaccurate
+          const riskOutcome = analysis.riskPredictionAccuracy === true ? 'accurate'
+            : analysis.riskPredictionAccuracy === false ? 'inaccurate'
+            : analysis.riskPredictionAccuracy
+          if (riskOutcome === 'accurate') todayInsights.strengths.push('Your risk prediction was accurate — good self-awareness')
+          if (riskOutcome === 'emotionally_set') todayInsights.strengths.push('No risks predicted, no traps encountered — you were emotionally grounded')
+          if (riskOutcome === 'worry_not_fulfilled') todayInsights.strengths.push('Your predicted risk didn\'t materialize — you were prepared for a challenge that didn\'t come')
+          if (riskOutcome === 'blind_spot') todayInsights.issues.push('Traps occurred that you didn\'t predict pre-market — review your risk awareness')
+          if (riskOutcome === 'inaccurate') todayInsights.issues.push('You predicted a different risk than what actually happened — fine-tune your self-awareness')
           if (analysis.stateConsistency !== undefined && analysis.stateConsistency !== null) {
             const absDrift = Math.abs(analysis.stateConsistency)
             if (absDrift < 0.5) todayInsights.strengths.push('Your mental state was very consistent from pre-market to post-market')
@@ -823,6 +850,60 @@ export const MentalCheckIns: CollectionConfig = {
         return Response.json({
           totalDays: checkIns.totalDocs,
           trends,
+        })
+      },
+    },
+    {
+      path: '/recalculate-analysis',
+      method: 'post',
+      handler: async (req: PayloadRequest) => {
+        // Two auth modes:
+        // 1. Logged-in user → recalculate only their check-ins
+        // 2. CRON_SECRET header → recalculate ALL users (for production migration)
+        const authHeader = req.headers.get('authorization')
+        const isCronAuth = authHeader === `Bearer ${process.env.CRON_SECRET}`
+        const isUserAuth = !!req.user
+
+        if (!isUserAuth && !isCronAuth) {
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        // Build query — filter by user only if user-auth (not cron)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const where: Record<string, any> = {
+          'preMarket.completedAt': { exists: true },
+          'postMarket.completedAt': { exists: true },
+        }
+        if (isUserAuth && !isCronAuth) {
+          where.user = { equals: req.user!.id }
+        }
+
+        const checkIns = await req.payload.find({
+          collection: 'mental-check-ins' as AnyCollection,
+          where,
+          limit: 10000,
+          depth: 0,
+        })
+
+        const docs = checkIns.docs as AnyCollection[]
+        let updated = 0
+
+        for (const doc of docs) {
+          // Re-save to trigger the beforeChange hook which recalculates analysis
+          await req.payload.update({
+            collection: 'mental-check-ins' as AnyCollection,
+            id: doc.id,
+            data: {
+              preMarket: doc.preMarket,
+              postMarket: doc.postMarket,
+            },
+          })
+          updated++
+        }
+
+        return Response.json({
+          message: `Recalculated analysis for ${updated} check-ins`,
+          updated,
         })
       },
     },

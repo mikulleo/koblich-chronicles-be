@@ -138,10 +138,10 @@ export const MindsetConfig: GlobalConfig = {
         {
           name: 'model',
           type: 'select',
-          defaultValue: 'claude-sonnet-4-20250514',
+          defaultValue: 'claude-sonnet-4-6',
           options: [
-            { label: 'Claude Sonnet 4', value: 'claude-sonnet-4-20250514' },
-            { label: 'Claude Opus 4', value: 'claude-opus-4-20250514' },
+            { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
+            { label: 'Claude Opus 4.8', value: 'claude-opus-4-8' },
           ],
           admin: {
             description: 'Claude model to use for evaluations',

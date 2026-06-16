@@ -477,7 +477,7 @@ export const MindsetEvaluations: CollectionConfig = {
             systemPrompt,
             userPrompt,
             {
-              model: aiConfig.model || 'claude-sonnet-4-20250514',
+              model: aiConfig.model || 'claude-sonnet-4-6',
               maxTokens: aiConfig.maxTokens || 1500,
               temperature: aiConfig.temperature ?? 0.7,
             },
@@ -515,7 +515,7 @@ export const MindsetEvaluations: CollectionConfig = {
                 inputTokens: result.usage?.input_tokens || 0,
                 outputTokens: result.usage?.output_tokens || 0,
                 estimatedCost: estimateCost(
-                  aiConfig.model || 'claude-sonnet-4-20250514',
+                  aiConfig.model || 'claude-sonnet-4-6',
                   result.usage?.input_tokens || 0,
                   result.usage?.output_tokens || 0,
                 ),
@@ -703,10 +703,10 @@ export const MindsetEvaluations: CollectionConfig = {
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
   // Pricing per million tokens (approximate)
   const pricing: Record<string, { input: number; output: number }> = {
-    'claude-sonnet-4-20250514': { input: 3, output: 15 },
-    'claude-opus-4-20250514': { input: 15, output: 75 },
+    'claude-sonnet-4-6': { input: 3, output: 15 },
+    'claude-opus-4-8': { input: 5, output: 25 },
   }
-  const rates = pricing[model] || pricing['claude-sonnet-4-20250514']!
+  const rates = pricing[model] || pricing['claude-sonnet-4-6']!
   return Math.round(((inputTokens * rates.input + outputTokens * rates.output) / 1_000_000) * 10000) / 10000
 }
 

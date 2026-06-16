@@ -2930,7 +2930,7 @@ export interface MindsetConfig {
     /**
      * Claude model to use for evaluations
      */
-    model?: ('claude-sonnet-4-20250514' | 'claude-opus-4-20250514') | null;
+    model?: ('claude-sonnet-4-6' | 'claude-opus-4-8') | null;
     /**
      * Maximum tokens for AI response (default: 1500)
      */

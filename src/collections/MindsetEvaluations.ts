@@ -41,6 +41,34 @@ The overallScore should be 1-10 where:
 8-9: Strong performance, minor refinements
 10: Exceptional mental discipline`
 
+// JSON schema for Claude structured outputs. Mirrors the shape requested in the
+// system prompt and stored in the aiAnalysis group. Strict mode requires every
+// property to be listed in `required` and `additionalProperties: false`.
+// Numeric range on overallScore is enforced in code (Math.min/Math.max), since
+// structured outputs does not support min/max constraints.
+const EVALUATION_OUTPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    coachingFeedback: { type: 'string' },
+    patternsIdentified: { type: 'array', items: { type: 'string' } },
+    actionableInsights: { type: 'array', items: { type: 'string' } },
+    riskAlerts: { type: 'array', items: { type: 'string' } },
+    strengthsHighlighted: { type: 'array', items: { type: 'string' } },
+    focusForTomorrow: { type: 'string' },
+    overallScore: { type: 'integer' },
+  },
+  required: [
+    'coachingFeedback',
+    'patternsIdentified',
+    'actionableInsights',
+    'riskAlerts',
+    'strengthsHighlighted',
+    'focusForTomorrow',
+    'overallScore',
+  ],
+  additionalProperties: false,
+} as const
+
 function computeDataHash(data: Record<string, unknown>): string {
   const str = JSON.stringify(data, Object.keys(data).sort())
   return crypto.createHash('sha256').update(str).digest('hex').slice(0, 16)
@@ -481,6 +509,7 @@ export const MindsetEvaluations: CollectionConfig = {
               maxTokens: aiConfig.maxTokens || 1500,
               temperature: aiConfig.temperature ?? 0.7,
             },
+            EVALUATION_OUTPUT_SCHEMA as unknown as Record<string, unknown>,
           )
 
           // Parse AI response

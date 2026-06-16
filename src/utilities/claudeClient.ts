@@ -42,6 +42,7 @@ export async function generateMindsetEvaluation(
   systemPrompt: string,
   userPrompt: string,
   config: EvaluationConfig,
+  outputSchema?: Record<string, unknown>,
 ): Promise<EvaluationResult> {
   const anthropic = getClient()
 
@@ -61,7 +62,24 @@ export async function generateMindsetEvaluation(
     params.temperature = config.temperature
   }
 
+  // Structured outputs constrain the response to valid JSON matching the schema,
+  // so we don't rely on the model formatting JSON correctly inside free text
+  // (markdown fences, preamble, etc.).
+  if (outputSchema) {
+    params.output_config = {
+      format: { type: 'json_schema', schema: outputSchema },
+    }
+  }
+
   const response = await anthropic.messages.create(params)
+
+  // A truncated response yields incomplete (unparseable) JSON. Surface a clear,
+  // actionable error rather than a downstream "Failed to parse AI response".
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error(
+      `Claude response was truncated at max_tokens=${config.maxTokens}. Increase "Max Tokens" in Mindset Config.`,
+    )
+  }
 
   const textContent = response.content.find((block) => block.type === 'text')
   if (!textContent || textContent.type !== 'text') {

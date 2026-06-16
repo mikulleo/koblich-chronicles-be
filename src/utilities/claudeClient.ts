@@ -27,6 +27,14 @@ interface EvaluationResult {
   }
 }
 
+// Opus 4.7+ and Fable models reject sampling params (temperature/top_p/top_k)
+// with a 400. Only send `temperature` for models that still accept it (e.g. Sonnet 4.6).
+const MODELS_WITHOUT_SAMPLING_PARAMS = new Set<string>([
+  'claude-opus-4-8',
+  'claude-opus-4-7',
+  'claude-fable-5',
+])
+
 /**
  * Generates a mindset evaluation using Claude API.
  */
@@ -37,10 +45,9 @@ export async function generateMindsetEvaluation(
 ): Promise<EvaluationResult> {
   const anthropic = getClient()
 
-  const response = await anthropic.messages.create({
+  const params: Anthropic.MessageCreateParamsNonStreaming = {
     model: config.model,
     max_tokens: config.maxTokens,
-    temperature: config.temperature,
     system: systemPrompt,
     messages: [
       {
@@ -48,7 +55,13 @@ export async function generateMindsetEvaluation(
         content: userPrompt,
       },
     ],
-  })
+  }
+
+  if (!MODELS_WITHOUT_SAMPLING_PARAMS.has(config.model)) {
+    params.temperature = config.temperature
+  }
+
+  const response = await anthropic.messages.create(params)
 
   const textContent = response.content.find((block) => block.type === 'text')
   if (!textContent || textContent.type !== 'text') {

@@ -4,6 +4,7 @@ import * as migration_20260316_performance_indexes from './20260316_performance_
 import * as migration_20260320_123606 from './20260320_123606';
 import * as migration_20260325_add_country_to_users from './20260325_add_country_to_users';
 import * as migration_20260325_222051 from './20260325_222051';
+import * as migration_20260616_120000_update_mindset_model_ids from './20260616_120000_update_mindset_model_ids';
 
 export const migrations = [
   {
@@ -35,5 +36,10 @@ export const migrations = [
     up: migration_20260325_222051.up,
     down: migration_20260325_222051.down,
     name: '20260325_222051',
+  },
+  {
+    up: migration_20260616_120000_update_mindset_model_ids.up,
+    down: migration_20260616_120000_update_mindset_model_ids.down,
+    name: '20260616_120000_update_mindset_model_ids',
   },
 ];

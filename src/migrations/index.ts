@@ -7,6 +7,7 @@ import * as migration_20260325_add_country_to_users from './20260325_add_country
 import * as migration_20260616_120000_update_mindset_model_ids from './20260616_120000_update_mindset_model_ids';
 import * as migration_20260726_083949_add_did_not_trade_to_trades from './20260726_083949_add_did_not_trade_to_trades';
 import * as migration_20260726_090236_add_trade_submissions from './20260726_090236_add_trade_submissions';
+import * as migration_20260727_194255_add_gym_activity from './20260727_194255_add_gym_activity';
 
 export const migrations = [
   {
@@ -52,6 +53,11 @@ export const migrations = [
   {
     up: migration_20260726_090236_add_trade_submissions.up,
     down: migration_20260726_090236_add_trade_submissions.down,
-    name: '20260726_090236_add_trade_submissions'
+    name: '20260726_090236_add_trade_submissions',
+  },
+  {
+    up: migration_20260727_194255_add_gym_activity.up,
+    down: migration_20260727_194255_add_gym_activity.down,
+    name: '20260727_194255_add_gym_activity'
   },
 ];

@@ -25,6 +25,7 @@ import { DisciplineRules } from '@/collections/DisciplineRules'
 import { DisciplineLog } from '@/collections/DisciplineLog'
 import { MindsetEvaluations } from '@/collections/MindsetEvaluations'
 import { TradeSubmissions } from '@/collections/TradeSubmissions'
+import { GymActivity } from '@/collections/GymActivity'
 import { Footer } from '@/Footer/config'
 import { Header } from '@/Header/config'
 import { MindsetConfig } from '@/globals/MindsetConfig'
@@ -117,7 +118,7 @@ export default buildConfig({
       allowExitOnIdle: true, // Allow the pool to exit cleanly
     },
   }),
-  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades, Donations, MentalCheckIns, MindsetJournal, DisciplineRules, DisciplineLog, MindsetEvaluations, TradeSubmissions],
+  collections: [Pages, Posts, Media, Categories, Users, Tags, Tickers, Charts, Trades, Donations, MentalCheckIns, MindsetJournal, DisciplineRules, DisciplineLog, MindsetEvaluations, TradeSubmissions, GymActivity],
   cors: {
     origins: [
       getServerSideURL(),

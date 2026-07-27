@@ -83,6 +83,7 @@ export interface Config {
     'discipline-log': DisciplineLog;
     'mindset-evaluations': MindsetEvaluation;
     'trade-submissions': TradeSubmission;
+    'gym-activity': GymActivity;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -111,6 +112,7 @@ export interface Config {
     'discipline-log': DisciplineLogSelect<false> | DisciplineLogSelect<true>;
     'mindset-evaluations': MindsetEvaluationsSelect<false> | MindsetEvaluationsSelect<true>;
     'trade-submissions': TradeSubmissionsSelect<false> | TradeSubmissionsSelect<true>;
+    'gym-activity': GymActivitySelect<false> | GymActivitySelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -1692,6 +1694,39 @@ export interface TradeSubmission {
   createdAt: string;
 }
 /**
+ * Replay study sessions recorded by the Trading Gym (endpoint-only writes)
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gym-activity".
+ */
+export interface GymActivity {
+  id: number;
+  user: number | User;
+  source: 'trade' | 'submission';
+  /**
+   * ID of the replayed trade or submission
+   */
+  refId: string;
+  /**
+   * Replay was watched through to the summary
+   */
+  completed?: boolean | null;
+  /**
+   * First time this user completed this replay
+   */
+  firstCompletion?: boolean | null;
+  /**
+   * Active study time in this session (seconds)
+   */
+  durationSeconds: number;
+  /**
+   * Completion points awarded (study-time points are derived at read time)
+   */
+  points: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
@@ -1943,6 +1978,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'trade-submissions';
         value: number | TradeSubmission;
+      } | null)
+    | ({
+        relationTo: 'gym-activity';
+        value: number | GymActivity;
       } | null)
     | ({
         relationTo: 'redirects';
@@ -2723,6 +2762,21 @@ export interface TradeSubmissionsSelect<T extends boolean = true> {
             };
         commentary?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gym-activity_select".
+ */
+export interface GymActivitySelect<T extends boolean = true> {
+  user?: T;
+  source?: T;
+  refId?: T;
+  completed?: T;
+  firstCompletion?: T;
+  durationSeconds?: T;
+  points?: T;
   updatedAt?: T;
   createdAt?: T;
 }

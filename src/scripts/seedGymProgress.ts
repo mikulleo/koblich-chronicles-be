@@ -113,6 +113,9 @@ const mulberry32 = (a: number) => () => {
 const isLocalDb = (uri: string | undefined): boolean =>
   !!uri && /@(localhost|127\.0\.0\.1|postgres)[:/]/.test(uri)
 
+/** Bounds-checked at every call site; drops the `| undefined` from noUncheckedIndexedAccess */
+const at = <T>(arr: T[], i: number): T => arr[i] as T
+
 interface PlannedSession {
   refId: string
   completed: boolean
@@ -155,7 +158,7 @@ const planSessions = (
 
   for (let i = 0; i < firsts; i++) {
     pushSession({
-      refId: tradeIds[i],
+      refId: at(tradeIds, i),
       completed: true,
       firstCompletion: true,
       durationSeconds: 0,
@@ -165,7 +168,7 @@ const planSessions = (
   }
   for (let i = 0; i < repeats; i++) {
     pushSession({
-      refId: tradeIds[Math.floor(rand() * Math.min(firsts, tradeIds.length))],
+      refId: at(tradeIds, Math.floor(rand() * Math.min(firsts, tradeIds.length))),
       completed: true,
       firstCompletion: false,
       durationSeconds: 0,
@@ -189,7 +192,7 @@ const planSessions = (
   while (left > 0 && guard++ < 10000) {
     const give = Math.min(left, 10 + Math.floor(rand() * 80), maxMinutes)
     pushSession({
-      refId: tradeIds[Math.floor(rand() * tradeIds.length)],
+      refId: at(tradeIds, Math.floor(rand() * tradeIds.length)),
       completed: false,
       firstCompletion: false,
       durationSeconds: give * 60,
@@ -355,7 +358,7 @@ const run = async () => {
   if (wantSubs !== undefined && wantSubs > 0) {
     for (let i = 0; i < wantSubs; i++) {
       plannedSubmissions.push({
-        symbol: SEED_SYMBOLS[i % SEED_SYMBOLS.length],
+        symbol: at(SEED_SYMBOLS, i % SEED_SYMBOLS.length),
         reviewed: i < wantReviewed,
       })
     }

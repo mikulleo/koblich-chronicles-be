@@ -118,7 +118,7 @@ function parseFilename(filename: string): ParsedName | { error: string; filename
     }
   }
 
-  const [rawDate, rawSymbol, rawTimeframe] = core
+  const [rawDate, rawSymbol, rawTimeframe] = core as [string, string, string]
 
   if (!/^\d{8}$/.test(rawDate)) {
     return { filename, error: `Bad date segment "${rawDate}" (need YYYYMMDD)` }
@@ -290,7 +290,7 @@ async function findOrCreateTicker(payload: Payload, symbol: string): Promise<num
     limit: 1,
     depth: 0,
   })
-  if (existing.docs.length) return existing.docs[0].id as number
+  if (existing.docs[0]) return existing.docs[0].id as number
 
   const created = await payload.create({
     collection: 'tickers',
@@ -320,7 +320,7 @@ async function resolveTagIds(
       limit: 1,
       depth: 0,
     })
-    if (existing.docs.length) {
+    if (existing.docs[0]) {
       ids.push(existing.docs[0].id as number)
       continue
     }

@@ -1,6 +1,9 @@
 build
 dist / media
 node_modules
+charts-inbox/
+charts.pdf
+tsconfig.tsbuildinfo
 .DS_Store
 .env
 .next

@@ -82,6 +82,7 @@ export interface Config {
     'discipline-rules': DisciplineRule;
     'discipline-log': DisciplineLog;
     'mindset-evaluations': MindsetEvaluation;
+    'trade-submissions': TradeSubmission;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -109,6 +110,7 @@ export interface Config {
     'discipline-rules': DisciplineRulesSelect<false> | DisciplineRulesSelect<true>;
     'discipline-log': DisciplineLogSelect<false> | DisciplineLogSelect<true>;
     'mindset-evaluations': MindsetEvaluationsSelect<false> | MindsetEvaluationsSelect<true>;
+    'trade-submissions': TradeSubmissionsSelect<false> | TradeSubmissionsSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -1007,6 +1009,10 @@ export interface Trade {
    */
   setupType?: ('breakout' | 'pullback' | 'reversal' | 'gap' | 'other') | null;
   /**
+   * Hypothetical trade Leoš did NOT actually take — excluded from stats and the public trades list, but shown in the Gym replay
+   */
+  didNotTrade?: boolean | null;
+  /**
    * Track changes to stop loss
    */
   modifiedStops?:
@@ -1584,6 +1590,108 @@ export interface MindsetEvaluation {
   createdAt: string;
 }
 /**
+ * Trades submitted by gym users for Leoš to review
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "trade-submissions".
+ */
+export interface TradeSubmission {
+  id: number;
+  user: number | User;
+  /**
+   * Stock symbol, e.g. AAPL
+   */
+  tickerSymbol: string;
+  tradeType: 'long' | 'short';
+  /**
+   * Date you bought
+   */
+  entryDate: string;
+  /**
+   * Price at entry
+   */
+  entryPrice: number;
+  /**
+   * % of a full position (100 = full, 50 = half, 25 = quarter)
+   */
+  positionSizePct: number;
+  /**
+   * Initial stop loss price
+   */
+  initialStopLoss: number;
+  /**
+   * Stop loss moves
+   */
+  movedStops?:
+    | {
+        date: string;
+        price: number;
+        comment?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Sells / reductions (at least one — full or partial)
+   */
+  exits: {
+    date: string;
+    price: number;
+    /**
+     * % of the position sold in this exit
+     */
+    sizePct: number;
+    comment?: string | null;
+    id?: string | null;
+  }[];
+  /**
+   * Overall notes about the trade
+   */
+  notes?: string | null;
+  /**
+   * Submitter's consent to show this trade to all users after review
+   */
+  makePublic?: boolean | null;
+  reviewStatus: 'pending' | 'reviewed';
+  /**
+   * Leoš's own take on this trade (admin only)
+   */
+  leosReview?: {
+    wouldTrade?: ('yes' | 'no') | null;
+    entryDate?: string | null;
+    entryPrice?: number | null;
+    initialStopLoss?: number | null;
+    /**
+     * Where Leoš would have moved stops
+     */
+    stops?:
+      | {
+          date: string;
+          price: number;
+          comment?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Where Leoš would have sold
+     */
+    exits?:
+      | {
+          date: string;
+          price: number;
+          sizePct?: number | null;
+          comment?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Overall commentary
+     */
+    commentary?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
@@ -1831,6 +1939,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'mindset-evaluations';
         value: number | MindsetEvaluation;
+      } | null)
+    | ({
+        relationTo: 'trade-submissions';
+        value: number | TradeSubmission;
       } | null)
     | ({
         relationTo: 'redirects';
@@ -2306,6 +2418,7 @@ export interface TradesSelect<T extends boolean = true> {
   initialStopLoss?: T;
   relatedCharts?: T;
   setupType?: T;
+  didNotTrade?: T;
   modifiedStops?:
     | T
     | {
@@ -2549,6 +2662,67 @@ export interface MindsetEvaluationsSelect<T extends boolean = true> {
       };
   status?: T;
   errorMessage?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "trade-submissions_select".
+ */
+export interface TradeSubmissionsSelect<T extends boolean = true> {
+  user?: T;
+  tickerSymbol?: T;
+  tradeType?: T;
+  entryDate?: T;
+  entryPrice?: T;
+  positionSizePct?: T;
+  initialStopLoss?: T;
+  movedStops?:
+    | T
+    | {
+        date?: T;
+        price?: T;
+        comment?: T;
+        id?: T;
+      };
+  exits?:
+    | T
+    | {
+        date?: T;
+        price?: T;
+        sizePct?: T;
+        comment?: T;
+        id?: T;
+      };
+  notes?: T;
+  makePublic?: T;
+  reviewStatus?: T;
+  leosReview?:
+    | T
+    | {
+        wouldTrade?: T;
+        entryDate?: T;
+        entryPrice?: T;
+        initialStopLoss?: T;
+        stops?:
+          | T
+          | {
+              date?: T;
+              price?: T;
+              comment?: T;
+              id?: T;
+            };
+        exits?:
+          | T
+          | {
+              date?: T;
+              price?: T;
+              sizePct?: T;
+              comment?: T;
+              id?: T;
+            };
+        commentary?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

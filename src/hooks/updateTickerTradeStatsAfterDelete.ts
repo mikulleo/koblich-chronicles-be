@@ -14,12 +14,15 @@ export const updateTickerTradeStatsAfterDeleteHook: CollectionAfterDeleteHook = 
     // Get ticker ID (handle both populated and non-populated cases)
     const tickerId = typeof doc.ticker === 'object' ? doc.ticker.id : doc.ticker
 
-    // Count all trades associated with this ticker
+    // Count all trades associated with this ticker (excluding hypothetical "didn't trade" entries)
     const tradeCount = await req.payload.find({
       collection: 'trades',
       where: {
         ticker: {
           equals: tickerId,
+        },
+        didNotTrade: {
+          not_equals: true,
         },
       },
       limit: 0, // Just need the count
@@ -34,6 +37,9 @@ export const updateTickerTradeStatsAfterDeleteHook: CollectionAfterDeleteHook = 
         },
         status: {
           in: ['closed', 'partial'],
+        },
+        didNotTrade: {
+          not_equals: true,
         },
       },
       limit: 500, // Reasonable limit for calculations

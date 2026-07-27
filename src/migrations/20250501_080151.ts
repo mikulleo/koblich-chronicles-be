@@ -65,6 +65,11 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
       END IF;
     END $$;
     DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum__pages_v_version_hero_links_link_type') THEN
+        CREATE TYPE "public"."enum__pages_v_version_hero_links_link_type" AS ENUM('reference', 'custom');
+      END IF;
+    END $$;
+    DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum__pages_v_version_hero_links_link_appearance') THEN
         CREATE TYPE "public"."enum__pages_v_version_hero_links_link_appearance" AS ENUM('default', 'outline');
       END IF;

@@ -191,6 +191,17 @@ export const Trades: CollectionConfig = {
       },
     },
     {
+      name: 'didNotTrade',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description:
+          "Hypothetical trade Leoš did NOT actually take — excluded from stats and the public trades list, but shown in the Gym replay",
+      },
+    },
+    {
       name: 'modifiedStops',
       type: 'array',
       admin: {
@@ -618,7 +629,10 @@ export const Trades: CollectionConfig = {
           const statusFilter = req.query?.statusFilter as string | undefined
 
           // Build the query (UNCHANGED except removing date filters)
-          const query: Record<string, any> = {}
+          const query: Record<string, any> = {
+            // Hypothetical "didn't trade" entries never count toward statistics
+            didNotTrade: { not_equals: true },
+          }
 
           // Handle status filter (UNCHANGED)
           if (statusFilter === 'closed-only') {
@@ -857,6 +871,7 @@ export const Trades: CollectionConfig = {
             rRatio: trade.rRatio || 0,
             chartCount: storyCharts.length,
             eventCount: timelineEvents.length,
+            didNotTrade: trade.didNotTrade === true,
           }
 
           // Group charts by role

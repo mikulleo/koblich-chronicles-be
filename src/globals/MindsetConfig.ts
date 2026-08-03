@@ -138,10 +138,10 @@ export const MindsetConfig: GlobalConfig = {
         {
           name: 'model',
           type: 'select',
-          defaultValue: 'claude-sonnet-4-6',
+          defaultValue: 'claude-sonnet-5',
           options: [
-            { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
-            { label: 'Claude Opus 4.8', value: 'claude-opus-4-8' },
+            { label: 'Claude Sonnet 5', value: 'claude-sonnet-5' },
+            { label: 'Claude Opus 5', value: 'claude-opus-5' },
           ],
           admin: {
             description: 'Claude model to use for evaluations',
@@ -150,11 +150,12 @@ export const MindsetConfig: GlobalConfig = {
         {
           name: 'maxTokens',
           type: 'number',
-          defaultValue: 1500,
+          defaultValue: 4000,
           min: 500,
-          max: 4000,
+          max: 16000,
           admin: {
-            description: 'Maximum tokens for AI response (default: 1500)',
+            description:
+              'Maximum tokens for AI response (default: 4000). Claude 5 models think by default, and thinking tokens count against this budget — keep headroom above the length of the JSON answer itself or the response gets truncated.',
           },
         },
         {
@@ -164,7 +165,8 @@ export const MindsetConfig: GlobalConfig = {
           min: 0,
           max: 1,
           admin: {
-            description: 'Temperature for AI generation (0=deterministic, 1=creative, default: 0.7)',
+            description:
+              'Temperature for AI generation (0=deterministic, 1=creative, default: 0.7). Ignored on Claude 5 models — they reject sampling params, so the value is only sent to models that still accept it.',
           },
         },
         {

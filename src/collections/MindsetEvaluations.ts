@@ -55,7 +55,10 @@ const EVALUATION_OUTPUT_SCHEMA = {
     riskAlerts: { type: 'array', items: { type: 'string' } },
     strengthsHighlighted: { type: 'array', items: { type: 'string' } },
     focusForTomorrow: { type: 'string' },
-    overallScore: { type: 'integer' },
+    overallScore: {
+      type: 'integer',
+      description: 'Overall mental performance score on a 1-10 scale (10 = exceptional discipline)',
+    },
   },
   required: [
     'coachingFeedback',
@@ -505,8 +508,8 @@ export const MindsetEvaluations: CollectionConfig = {
             systemPrompt,
             userPrompt,
             {
-              model: aiConfig.model || 'claude-sonnet-4-6',
-              maxTokens: aiConfig.maxTokens || 1500,
+              model: aiConfig.model || 'claude-sonnet-5',
+              maxTokens: aiConfig.maxTokens || 4000,
               temperature: aiConfig.temperature ?? 0.7,
             },
             EVALUATION_OUTPUT_SCHEMA as unknown as Record<string, unknown>,
@@ -544,7 +547,7 @@ export const MindsetEvaluations: CollectionConfig = {
                 inputTokens: result.usage?.input_tokens || 0,
                 outputTokens: result.usage?.output_tokens || 0,
                 estimatedCost: estimateCost(
-                  aiConfig.model || 'claude-sonnet-4-6',
+                  aiConfig.model || 'claude-sonnet-5',
                   result.usage?.input_tokens || 0,
                   result.usage?.output_tokens || 0,
                 ),
@@ -730,12 +733,15 @@ export const MindsetEvaluations: CollectionConfig = {
 }
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  // Pricing per million tokens (approximate)
+  // Pricing per million tokens (list price). Sonnet 5 is discounted to $2/$10
+  // through 2026-08-31; we estimate at list so the number doesn't jump afterwards.
+  // Thinking tokens are billed as output tokens and are already included in
+  // response.usage.output_tokens.
   const pricing: Record<string, { input: number; output: number }> = {
-    'claude-sonnet-4-6': { input: 3, output: 15 },
-    'claude-opus-4-8': { input: 5, output: 25 },
+    'claude-sonnet-5': { input: 3, output: 15 },
+    'claude-opus-5': { input: 5, output: 25 },
   }
-  const rates = pricing[model] || pricing['claude-sonnet-4-6']!
+  const rates = pricing[model] || pricing['claude-sonnet-5']!
   return Math.round(((inputTokens * rates.input + outputTokens * rates.output) / 1_000_000) * 10000) / 10000
 }
 

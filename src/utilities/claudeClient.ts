@@ -27,12 +27,13 @@ interface EvaluationResult {
   }
 }
 
-// Opus 4.7+ and Fable models reject sampling params (temperature/top_p/top_k)
-// with a 400. Only send `temperature` for models that still accept it (e.g. Sonnet 4.6).
-const MODELS_WITHOUT_SAMPLING_PARAMS = new Set<string>([
-  'claude-opus-4-8',
-  'claude-opus-4-7',
-  'claude-fable-5',
+// Claude 5 / Opus 4.7+ / Fable reject sampling params (temperature/top_p/top_k)
+// with a 400, so this is an allowlist rather than a blocklist: only models known
+// to still accept `temperature` get it. Everything current steers via prompt + effort.
+const MODELS_ACCEPTING_SAMPLING_PARAMS = new Set<string>([
+  'claude-sonnet-4-6',
+  'claude-opus-4-6',
+  'claude-haiku-4-5',
 ])
 
 /**
@@ -58,17 +59,20 @@ export async function generateMindsetEvaluation(
     ],
   }
 
-  if (!MODELS_WITHOUT_SAMPLING_PARAMS.has(config.model)) {
+  if (MODELS_ACCEPTING_SAMPLING_PARAMS.has(config.model)) {
     params.temperature = config.temperature
   }
+
+  // Claude 5 models think by default. `medium` keeps thinking spend (and latency)
+  // in proportion to what a one-shot coaching summary needs; raise it if the
+  // feedback starts reading shallow.
+  params.output_config = { effort: 'medium' }
 
   // Structured outputs constrain the response to valid JSON matching the schema,
   // so we don't rely on the model formatting JSON correctly inside free text
   // (markdown fences, preamble, etc.).
   if (outputSchema) {
-    params.output_config = {
-      format: { type: 'json_schema', schema: outputSchema },
-    }
+    params.output_config.format = { type: 'json_schema', schema: outputSchema }
   }
 
   const response = await anthropic.messages.create(params)
@@ -77,8 +81,14 @@ export async function generateMindsetEvaluation(
   // actionable error rather than a downstream "Failed to parse AI response".
   if (response.stop_reason === 'max_tokens') {
     throw new Error(
-      `Claude response was truncated at max_tokens=${config.maxTokens}. Increase "Max Tokens" in Mindset Config.`,
+      `Claude response was truncated at max_tokens=${config.maxTokens}. Thinking tokens share this budget on Claude 5 models — increase "Max Tokens" in Mindset Config.`,
     )
+  }
+
+  // Claude 5 models can decline a request outright (HTTP 200, empty content).
+  // Check before reading content so this doesn't surface as "No text content".
+  if (response.stop_reason === 'refusal') {
+    throw new Error('Claude declined to generate this evaluation (safety refusal).')
   }
 
   const textContent = response.content.find((block) => block.type === 'text')

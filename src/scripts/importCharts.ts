@@ -294,7 +294,10 @@ async function findOrCreateTicker(payload: Payload, symbol: string): Promise<num
 
   const created = await payload.create({
     collection: 'tickers',
-    data: { symbol, name: symbol }, // name is required; placeholder = symbol, enrich later
+    // name is required; placeholder = symbol, enrich later.
+    // The imported chart archive is US listings — set the market explicitly so the
+    // beforeChange hook derives providerSymbol without guessing.
+    data: { symbol, name: symbol, market: 'us' },
     depth: 0,
   })
   console.log(`  + created ticker ${symbol}`)

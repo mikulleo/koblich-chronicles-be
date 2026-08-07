@@ -1,9 +1,18 @@
 import { CollectionConfig, PayloadRequest } from 'payload'
+import {
+  MARKET_OPTIONS,
+  DEFAULT_MARKET,
+  buildProviderSymbol,
+  getMarket,
+  marketFromSymbol,
+  stripSuffix,
+} from '../utilities/markets'
+
 export const Tickers: CollectionConfig = {
   slug: 'tickers',
   admin: {
     useAsTitle: 'symbol',
-    defaultColumns: ['symbol', 'name', 'chartsCount', 'sector'],
+    defaultColumns: ['symbol', 'market', 'name', 'chartsCount', 'sector'],
     group: 'Stock Data',
     components: {
       // Add refresh button before the list view
@@ -16,6 +25,38 @@ export const Tickers: CollectionConfig = {
   access: {
     read: () => true,
   },
+  hooks: {
+    beforeChange: [
+      ({ data }) => {
+        if (!data) return data
+
+        const rawSymbol = String(data.symbol ?? '').trim()
+        if (!rawSymbol) return data
+
+        // A symbol pasted with its suffix (CEZ.PR) implies the market, so honour
+        // that rather than silently treating it as a US listing.
+        const inferred = marketFromSymbol(rawSymbol)
+        if (inferred && (!data.market || data.market === DEFAULT_MARKET)) {
+          data.market = inferred
+        }
+
+        const market = data.market || DEFAULT_MARKET
+        data.market = market
+        data.symbol = stripSuffix(rawSymbol)
+        data.providerSymbol = buildProviderSymbol(rawSymbol, market, data.marketSuffix)
+
+        // Exchange and currency are properties of the market, not of the ticker —
+        // keep them in sync. 'other' is the escape hatch where they stay manual.
+        const def = getMarket(market)
+        if (def && market !== 'other') {
+          data.exchange = def.exchange
+          data.currency = def.currency
+        }
+
+        return data
+      },
+    ],
+  },
   fields: [
     {
       name: 'symbol',
@@ -24,7 +65,37 @@ export const Tickers: CollectionConfig = {
       unique: true,
       index: true,
       admin: {
-        description: 'Stock ticker symbol (e.g., AAPL)',
+        description:
+          'Plain ticker symbol without an exchange suffix (e.g. AAPL, CEZ, SAP). Pick the market below — the suffix is added automatically. Pasting a suffixed symbol (CEZ.PR) also works and selects the market for you.',
+      },
+    },
+    {
+      name: 'market',
+      type: 'select',
+      required: true,
+      defaultValue: DEFAULT_MARKET,
+      options: MARKET_OPTIONS,
+      admin: {
+        description:
+          'Country / exchange this ticker trades on. Drives the symbol suffix used to load Trade Replay chart data, plus the exchange and currency below.',
+      },
+    },
+    {
+      name: 'marketSuffix',
+      type: 'text',
+      admin: {
+        description: 'Provider suffix including the dot, e.g. ".SW". Only used when Market is "Other".',
+        condition: (data) => data?.market === 'other',
+      },
+    },
+    {
+      name: 'providerSymbol',
+      type: 'text',
+      index: true,
+      admin: {
+        readOnly: true,
+        description:
+          'Symbol Trade Replay uses to fetch candles. Derived from the symbol + market — if this looks wrong, the chart will be wrong.',
       },
     },
     {
@@ -33,6 +104,22 @@ export const Tickers: CollectionConfig = {
       required: true,
       admin: {
         description: 'Full company name (e.g., Apple Inc.)',
+      },
+    },
+    {
+      name: 'exchange',
+      type: 'text',
+      admin: {
+        description:
+          'Exchange name. Filled in from the selected market — only edit this when Market is "Other".',
+      },
+    },
+    {
+      name: 'currency',
+      type: 'text',
+      admin: {
+        description:
+          'Trading currency, e.g. USD, EUR, CZK. Filled in from the selected market — only edit this when Market is "Other".',
       },
     },
     {

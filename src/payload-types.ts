@@ -821,13 +821,71 @@ export interface Tag {
 export interface Ticker {
   id: number;
   /**
-   * Stock ticker symbol (e.g., AAPL)
+   * Plain ticker symbol without an exchange suffix (e.g. AAPL, CEZ, SAP). Pick the market below — the suffix is added automatically. Pasting a suffixed symbol (CEZ.PR) also works and selects the market for you.
    */
   symbol: string;
+  /**
+   * Country / exchange this ticker trades on. Drives the symbol suffix used to load Trade Replay chart data, plus the exchange and currency below.
+   */
+  market:
+    | 'us'
+    | 'cz'
+    | 'de'
+    | 'de_f'
+    | 'uk'
+    | 'nl'
+    | 'fr'
+    | 'be'
+    | 'pt'
+    | 'ie'
+    | 'es'
+    | 'it'
+    | 'at'
+    | 'gr'
+    | 'fi'
+    | 'se'
+    | 'no'
+    | 'dk'
+    | 'ch'
+    | 'pl'
+    | 'hu'
+    | 'tr'
+    | 'ca'
+    | 'ca_v'
+    | 'mx'
+    | 'br'
+    | 'jp'
+    | 'hk'
+    | 'kr'
+    | 'tw'
+    | 'in'
+    | 'in_b'
+    | 'sg'
+    | 'au'
+    | 'nz'
+    | 'za'
+    | 'il'
+    | 'other';
+  /**
+   * Provider suffix including the dot, e.g. ".SW". Only used when Market is "Other".
+   */
+  marketSuffix?: string | null;
+  /**
+   * Symbol Trade Replay uses to fetch candles. Derived from the symbol + market — if this looks wrong, the chart will be wrong.
+   */
+  providerSymbol?: string | null;
   /**
    * Full company name (e.g., Apple Inc.)
    */
   name: string;
+  /**
+   * Exchange name. Filled in from the selected market — only edit this when Market is "Other".
+   */
+  exchange?: string | null;
+  /**
+   * Trading currency, e.g. USD, EUR, CZK. Filled in from the selected market — only edit this when Market is "Other".
+   */
+  currency?: string | null;
   /**
    * Brief description of the company
    */
@@ -2391,7 +2449,12 @@ export interface TagsSelect<T extends boolean = true> {
  */
 export interface TickersSelect<T extends boolean = true> {
   symbol?: T;
+  market?: T;
+  marketSuffix?: T;
+  providerSymbol?: T;
   name?: T;
+  exchange?: T;
+  currency?: T;
   description?: T;
   sector?: T;
   tags?: T;
@@ -3160,11 +3223,11 @@ export interface MindsetConfig {
      */
     model?: ('claude-sonnet-5' | 'claude-opus-5') | null;
     /**
-     * Maximum tokens for AI response (default: 1500)
+     * Maximum tokens for AI response (default: 4000). Claude 5 models think by default, and thinking tokens count against this budget — keep headroom above the length of the JSON answer itself or the response gets truncated.
      */
     maxTokens?: number | null;
     /**
-     * Temperature for AI generation (0=deterministic, 1=creative, default: 0.7)
+     * Temperature for AI generation (0=deterministic, 1=creative, default: 0.7). Ignored on Claude 5 models — they reject sampling params, so the value is only sent to models that still accept it.
      */
     temperature?: number | null;
     /**

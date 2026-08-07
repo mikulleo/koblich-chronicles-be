@@ -9,6 +9,8 @@ import * as migration_20260726_083949_add_did_not_trade_to_trades from './202607
 import * as migration_20260726_090236_add_trade_submissions from './20260726_090236_add_trade_submissions';
 import * as migration_20260727_194255_add_gym_activity from './20260727_194255_add_gym_activity';
 import * as migration_20260803_090000_update_mindset_model_ids_claude_5 from './20260803_090000_update_mindset_model_ids_claude_5';
+import * as migration_20260807_110351_add_ticker_exchange_currency from './20260807_110351_add_ticker_exchange_currency';
+import * as migration_20260807_122405_add_ticker_market from './20260807_122405_add_ticker_market';
 
 export const migrations = [
   {
@@ -59,11 +61,21 @@ export const migrations = [
   {
     up: migration_20260727_194255_add_gym_activity.up,
     down: migration_20260727_194255_add_gym_activity.down,
-    name: '20260727_194255_add_gym_activity'
+    name: '20260727_194255_add_gym_activity',
   },
   {
     up: migration_20260803_090000_update_mindset_model_ids_claude_5.up,
     down: migration_20260803_090000_update_mindset_model_ids_claude_5.down,
-    name: '20260803_090000_update_mindset_model_ids_claude_5'
+    name: '20260803_090000_update_mindset_model_ids_claude_5',
+  },
+  {
+    up: migration_20260807_110351_add_ticker_exchange_currency.up,
+    down: migration_20260807_110351_add_ticker_exchange_currency.down,
+    name: '20260807_110351_add_ticker_exchange_currency',
+  },
+  {
+    up: migration_20260807_122405_add_ticker_market.up,
+    down: migration_20260807_122405_add_ticker_market.down,
+    name: '20260807_122405_add_ticker_market'
   },
 ];

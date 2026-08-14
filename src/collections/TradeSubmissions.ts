@@ -2,6 +2,7 @@ import type { CollectionConfig, PayloadRequest, Where } from 'payload'
 import { authenticated } from '../access/authenticated'
 import { isAdmin } from '../access/adminOnly'
 import { setUserOwner } from '../hooks/setUserOwner'
+import { notifyOnTradeSubmission } from '../hooks/notifyOnTradeSubmission'
 
 /**
  * User-submitted trades ("Symbol Dropbox").
@@ -69,6 +70,7 @@ export const TradeSubmissions: CollectionConfig = {
   },
   hooks: {
     beforeChange: [setUserOwner],
+    afterChange: [notifyOnTradeSubmission],
   },
   fields: [
     {

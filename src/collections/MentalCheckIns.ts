@@ -3,6 +3,7 @@ import { authenticated } from '../access/authenticated'
 import { userOwned } from '../access/userOwned'
 import { setUserOwner } from '../hooks/setUserOwner'
 import { calculateCheckInAnalysis } from '../hooks/calculateCheckInAnalysis'
+import { notifyOnMentalCheckIn } from '../hooks/notifyOnMentalCheckIn'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCollection = any
@@ -22,6 +23,7 @@ export const MentalCheckIns: CollectionConfig = {
   },
   hooks: {
     beforeChange: [setUserOwner, calculateCheckInAnalysis],
+    afterChange: [notifyOnMentalCheckIn],
   },
   fields: [
     {

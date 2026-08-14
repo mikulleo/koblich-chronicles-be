@@ -27,13 +27,15 @@ interface Trade {
   }[];
   status: 'open' | 'partial' | 'closed';
   currentPrice?: number;
+  // Every metric is nullable: the API returns null when a trade lacks the
+  // inputs to compute it (e.g. no stop loss => no rRatio).
   currentMetrics?: {
-    profitLossAmount: number;
-    profitLossPercent: number;
-    rRatio: number;
-    riskAmount: number;
-    riskPercent: number;
-    breakEvenShares: number;
+    profitLossAmount: number | null;
+    profitLossPercent: number | null;
+    rRatio: number | null;
+    riskAmount: number | null;
+    riskPercent: number | null;
+    breakEvenShares: number | null;
     lastUpdated?: string;
   };
 }
@@ -131,7 +133,7 @@ export const OpenPositions: React.FC = () => {
   };
   
   // Function to format numbers as currency
-  const formatCurrency = (value: number | undefined) => {
+  const formatCurrency = (value: number | undefined | null) => {
     if (value === undefined || value === null) return '-';
     return new Intl.NumberFormat('en-US', { 
       style: 'currency', 
@@ -142,9 +144,16 @@ export const OpenPositions: React.FC = () => {
   };
   
   // Function to format percentages
-  const formatPercent = (value: number | undefined) => {
+  const formatPercent = (value: number | undefined | null) => {
     if (value === undefined || value === null) return '-';
     return `${value.toFixed(2)}%`;
+  };
+
+  // The API returns null for these when a trade has no risk basis (no stop loss),
+  // so they can't be formatted blind.
+  const formatDecimal = (value: number | undefined | null) => {
+    if (value === undefined || value === null || Number.isNaN(value)) return '-';
+    return value.toFixed(2);
   };
   
   // Function to format dates
@@ -261,7 +270,7 @@ export const OpenPositions: React.FC = () => {
                     {trade.currentMetrics ? formatPercent(trade.currentMetrics.profitLossPercent) : '-'}
                   </td>
                   <td className={trade.currentMetrics?.rRatio && trade.currentMetrics.rRatio >= 0 ? 'positive' : 'negative'}>
-                    {trade.currentMetrics ? trade.currentMetrics.rRatio.toFixed(2) : '-'}
+                    {formatDecimal(trade.currentMetrics?.rRatio)}
                   </td>
                   <td>
                     {trade.currentMetrics ? formatCurrency(trade.currentMetrics.riskAmount) : '-'}
@@ -270,7 +279,7 @@ export const OpenPositions: React.FC = () => {
                     {trade.currentMetrics ? formatPercent(trade.currentMetrics.riskPercent) : '-'}
                   </td>
                   <td>
-                    {trade.currentMetrics ? Math.round(trade.currentMetrics.breakEvenShares * 100) / 100 : '-'}
+                    {formatDecimal(trade.currentMetrics?.breakEvenShares)}
                   </td>
                   <td>
                     {trade.currentMetrics?.lastUpdated ? formatDate(trade.currentMetrics.lastUpdated) : '-'}

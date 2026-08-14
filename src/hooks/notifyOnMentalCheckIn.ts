@@ -1,7 +1,7 @@
 import type { CollectionAfterChangeHook } from 'payload'
 
 import { isAdmin } from '../access/adminOnly'
-import { notifyAdmin, type NotificationRow } from '../utilities/adminNotifications'
+import { logQuietly, notifyAdmin, type NotificationRow } from '../utilities/adminNotifications'
 
 const formatDay = (value: unknown): string | null => {
   if (!value) return null
@@ -41,50 +41,57 @@ const POST_MARKET_LABELS = {
  *
  * Free-text reflections are deliberately left out of the email; the ratings
  * give the gist, the full entry lives in the admin panel.
+ *
+ * Entirely invisible to the user: nothing is awaited and nothing can throw out
+ * of here, so the notification can't slow down, warn on, or fail their save.
  */
 export const notifyOnMentalCheckIn: CollectionAfterChangeHook = ({ doc, previousDoc, req }) => {
-  if (!req.user || isAdmin({ req })) return doc
+  try {
+    if (!req.user || isAdmin({ req })) return doc
 
-  const wasCompleted = Boolean(
-    previousDoc?.preMarket?.completedAt || previousDoc?.postMarket?.completedAt,
-  )
-  if (wasCompleted) return doc
+    const wasCompleted = Boolean(
+      previousDoc?.preMarket?.completedAt || previousDoc?.postMarket?.completedAt,
+    )
+    if (wasCompleted) return doc
 
-  const preMarketCompleted = Boolean(doc.preMarket?.completedAt)
-  const postMarketCompleted = Boolean(doc.postMarket?.completedAt)
-  if (!preMarketCompleted && !postMarketCompleted) return doc
+    const preMarketCompleted = Boolean(doc.preMarket?.completedAt)
+    const postMarketCompleted = Boolean(doc.postMarket?.completedAt)
+    if (!preMarketCompleted && !postMarketCompleted) return doc
 
-  const half = preMarketCompleted ? 'Pre-market check-in' : 'Post-market review'
-  const user = req.user.name ? `${req.user.name} (${req.user.email})` : req.user.email
-  const day = formatDay(doc.date) ?? '—'
+    const half = preMarketCompleted ? 'Pre-market check-in' : 'Post-market review'
+    const user = req.user.name ? `${req.user.name} (${req.user.email})` : req.user.email
+    const day = formatDay(doc.date) ?? '—'
 
-  const rows: NotificationRow[] = [
-    { label: 'User', value: user },
-    { label: 'Date', value: day },
-    { label: 'Filled in', value: half },
-  ]
+    const rows: NotificationRow[] = [
+      { label: 'User', value: user },
+      { label: 'Date', value: day },
+      { label: 'Filled in', value: half },
+    ]
 
-  if (preMarketCompleted) {
-    rows.push(...ratingRows(doc.preMarket?.ratings, PRE_MARKET_LABELS))
-    const flags: string[] = doc.preMarket?.contextFlags ?? []
-    if (flags.length) rows.push({ label: 'Context', value: flags.map(humanizeFlag).join(', ') })
-    const intentions: string[] = doc.preMarket?.intentions ?? []
-    if (intentions.length) rows.push({ label: 'Intentions', value: intentions.length })
-  } else {
-    rows.push(...ratingRows(doc.postMarket?.ratings, POST_MARKET_LABELS))
-    const traps: string[] = doc.postMarket?.actualTraps ?? []
-    if (traps.length) rows.push({ label: 'Traps hit', value: traps.map(humanizeFlag).join(', ') })
+    if (preMarketCompleted) {
+      rows.push(...ratingRows(doc.preMarket?.ratings, PRE_MARKET_LABELS))
+      const flags: string[] = doc.preMarket?.contextFlags ?? []
+      if (flags.length) rows.push({ label: 'Context', value: flags.map(humanizeFlag).join(', ') })
+      const intentions: string[] = doc.preMarket?.intentions ?? []
+      if (intentions.length) rows.push({ label: 'Intentions', value: intentions.length })
+    } else {
+      rows.push(...ratingRows(doc.postMarket?.ratings, POST_MARKET_LABELS))
+      const traps: string[] = doc.postMarket?.actualTraps ?? []
+      if (traps.length) rows.push({ label: 'Traps hit', value: traps.map(humanizeFlag).join(', ') })
+    }
+
+    notifyAdmin({
+      req,
+      subject: `Daily check-in: ${req.user.name || req.user.email} (${day})`,
+      heading: `${half} completed`,
+      intro: `${user} filled in their daily mindset check-in for ${day}.`,
+      rows,
+      ctaPath: `/admin/collections/mental-check-ins/${doc.id}`,
+      ctaLabel: 'Open check-in',
+    })
+
+  } catch (err) {
+    logQuietly(req, `notifyOnMentalCheckIn failed for check-in ${doc?.id}: ${err}`)
   }
-
-  notifyAdmin({
-    req,
-    subject: `Daily check-in: ${req.user.name || req.user.email} (${day})`,
-    heading: `${half} completed`,
-    intro: `${user} filled in their daily mindset check-in for ${day}.`,
-    rows,
-    ctaPath: `/admin/collections/mental-check-ins/${doc.id}`,
-    ctaLabel: 'Open check-in',
-  })
-
   return doc
 }

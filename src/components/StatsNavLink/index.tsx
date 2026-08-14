@@ -6,18 +6,24 @@ import Link from 'next/link';
 
 const StatsNavLink: React.FC = () => {
   const pathname = usePathname();
-  const isActive = pathname === '/admin/stats';
 
   return (
     <div className="nav-group">
       <h5 className="nav-group-label">Trading</h5>
       <div className="nav-items">
-        <Link 
-          href="/admin/stats" 
-          className={`nav-item ${isActive ? 'active' : ''}`}
+        <Link
+          href="/admin/stats"
+          className={`nav-item ${pathname === '/admin/stats' ? 'active' : ''}`}
         >
           <span className="icon">📊</span>
           <span className="label">Statistics</span>
+        </Link>
+        <Link
+          href="/admin/user-stats"
+          className={`nav-item ${pathname === '/admin/user-stats' ? 'active' : ''}`}
+        >
+          <span className="icon">👥</span>
+          <span className="label">Users &amp; Engagement</span>
         </Link>
       </div>
 

@@ -27,6 +27,15 @@ const escapeHtml = (value: unknown): string =>
 
 export type NotificationRow = { label: string; value: string | number | null | undefined }
 
+/** Server-side log only — never anything the API could hand back to a client. */
+export const logQuietly = (req: PayloadRequest, message: string): void => {
+  try {
+    req.payload.logger.error(message)
+  } catch {
+    // even the logger must not be able to break a user's save
+  }
+}
+
 type NotifyAdminArgs = {
   req: PayloadRequest
   subject: string
@@ -110,16 +119,26 @@ export const notifyAdmin = ({
 }: NotifyAdminArgs): void => {
   if (!notificationsEnabled()) return
 
-  const to = getAdminNotificationRecipient()
-  const ctaHref = ctaPath ? `${getServerSideURL().replace(/\/$/, '')}${ctaPath}` : undefined
+  // Nothing in here may ever reach the end user: a throw escaping an afterChange
+  // hook fails the whole request and rolls back their save. Hence the outer
+  // try/catch (sendEmail can throw synchronously on a bad transport) on top of
+  // the promise .catch(), and no awaiting.
+  try {
+    const to = getAdminNotificationRecipient()
+    const ctaHref = ctaPath ? `${getServerSideURL().replace(/\/$/, '')}${ctaPath}` : undefined
 
-  void req.payload
-    .sendEmail({
+    const result = req.payload.sendEmail({
       to,
       subject,
       html: buildHTML({ heading, intro, rows, ctaHref, ctaLabel }),
     })
-    .catch((err) => {
-      req.payload.logger.error(`Failed to send admin notification "${subject}" to ${to}: ${err}`)
-    })
+
+    if (result && typeof (result as Promise<unknown>).catch === 'function') {
+      void (result as Promise<unknown>).catch((err) => {
+        logQuietly(req, `Failed to send admin notification "${subject}" to ${to}: ${err}`)
+      })
+    }
+  } catch (err) {
+    logQuietly(req, `Failed to queue admin notification "${subject}": ${err}`)
+  }
 }

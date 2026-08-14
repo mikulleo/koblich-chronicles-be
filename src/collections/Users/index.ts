@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated } from '../../access/authenticated'
+import { userEngagementStats } from '../../endpoints/userEngagementStats'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -15,6 +16,7 @@ export const Users: CollectionConfig = {
     defaultColumns: ['name', 'email'],
     useAsTitle: 'name',
   },
+  endpoints: [userEngagementStats],
   auth: {
     forgotPassword: {
       generateEmailHTML: (args) => {

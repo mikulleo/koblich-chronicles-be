@@ -3,6 +3,7 @@ import { authenticated } from '../access/authenticated'
 import { userOwned } from '../access/userOwned'
 import { setUserOwner } from '../hooks/setUserOwner'
 import { generateMindsetEvaluation } from '../utilities/claudeClient'
+import { PATTERN_CODES, buildPatternTaxonomyPrompt } from '../utilities/mindsetPatterns'
 import crypto from 'crypto'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -27,6 +28,7 @@ You MUST respond with valid JSON in the following structure:
 {
   "coachingFeedback": "Main coaching narrative (2-4 paragraphs)",
   "patternsIdentified": ["pattern1", "pattern2"],
+  "patternTags": [{ "code": "revenge_trading", "evidence": "Short evidence sentence" }],
   "actionableInsights": ["specific action 1", "specific action 2"],
   "riskAlerts": ["alert if any dangerous patterns detected"],
   "strengthsHighlighted": ["strength 1", "strength 2"],
@@ -51,6 +53,23 @@ const EVALUATION_OUTPUT_SCHEMA = {
   properties: {
     coachingFeedback: { type: 'string' },
     patternsIdentified: { type: 'array', items: { type: 'string' } },
+    patternTags: {
+      type: 'array',
+      description:
+        'Canonical pattern codes for this evaluation, chosen only from the enum. Counted across days to surface recurring patterns.',
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'string', enum: PATTERN_CODES },
+          evidence: {
+            type: 'string',
+            description: 'One short sentence pointing at the data that justifies this tag',
+          },
+        },
+        required: ['code', 'evidence'],
+        additionalProperties: false,
+      },
+    },
     actionableInsights: { type: 'array', items: { type: 'string' } },
     riskAlerts: { type: 'array', items: { type: 'string' } },
     strengthsHighlighted: { type: 'array', items: { type: 'string' } },
@@ -63,6 +82,7 @@ const EVALUATION_OUTPUT_SCHEMA = {
   required: [
     'coachingFeedback',
     'patternsIdentified',
+    'patternTags',
     'actionableInsights',
     'riskAlerts',
     'strengthsHighlighted',
@@ -208,6 +228,15 @@ export const MindsetEvaluations: CollectionConfig = {
           name: 'patternsIdentified',
           type: 'json',
           admin: { readOnly: true },
+        },
+        {
+          name: 'patternTags',
+          type: 'json',
+          admin: {
+            readOnly: true,
+            description:
+              'Canonical pattern codes ({ code, evidence }) used to aggregate recurring patterns across days',
+          },
         },
         {
           name: 'actionableInsights',
@@ -491,8 +520,9 @@ export const MindsetEvaluations: CollectionConfig = {
             req,
           })
 
-          // Build prompts
-          const systemPrompt = aiConfig.systemPromptOverride || DEFAULT_SYSTEM_PROMPT
+          // Build prompts. The taxonomy is appended unconditionally — the output
+          // schema requires patternTags, so a custom system prompt must not drop it.
+          const systemPrompt = `${aiConfig.systemPromptOverride || DEFAULT_SYSTEM_PROMPT}\n\n${buildPatternTaxonomyPrompt()}`
 
           const userPrompt = buildUserPrompt(
             evaluationType,
@@ -537,6 +567,7 @@ export const MindsetEvaluations: CollectionConfig = {
               aiAnalysis: {
                 coachingFeedback: aiAnalysis.coachingFeedback || '',
                 patternsIdentified: aiAnalysis.patternsIdentified || [],
+                patternTags: sanitizePatternTags(aiAnalysis.patternTags),
                 actionableInsights: aiAnalysis.actionableInsights || [],
                 riskAlerts: aiAnalysis.riskAlerts || [],
                 strengthsHighlighted: aiAnalysis.strengthsHighlighted || [],
@@ -730,6 +761,32 @@ export const MindsetEvaluations: CollectionConfig = {
       },
     },
   ],
+}
+
+/**
+ * Keeps only known codes and drops duplicates — a code repeated inside one
+ * evaluation would otherwise inflate that day's weight in the recurring-pattern
+ * counts. Structured outputs already constrain the enum; this guards the JSON
+ * fallback path and any future prompt-only model.
+ */
+function sanitizePatternTags(raw: unknown): { code: string; evidence: string }[] {
+  if (!Array.isArray(raw)) return []
+
+  const known = new Set(PATTERN_CODES)
+  const seen = new Set<string>()
+  const tags: { code: string; evidence: string }[] = []
+
+  for (const entry of raw) {
+    const code = typeof entry?.code === 'string' ? entry.code : null
+    if (!code || !known.has(code) || seen.has(code)) continue
+    seen.add(code)
+    tags.push({
+      code,
+      evidence: typeof entry?.evidence === 'string' ? entry.evidence : '',
+    })
+  }
+
+  return tags
 }
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {

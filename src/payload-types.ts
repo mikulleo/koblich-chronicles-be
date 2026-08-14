@@ -1600,6 +1600,18 @@ export interface MindsetEvaluation {
       | number
       | boolean
       | null;
+    /**
+     * Canonical pattern codes ({ code, evidence }) used to aggregate recurring patterns across days
+     */
+    patternTags?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
     actionableInsights?:
       | {
           [k: string]: unknown;
@@ -2749,6 +2761,7 @@ export interface MindsetEvaluationsSelect<T extends boolean = true> {
     | {
         coachingFeedback?: T;
         patternsIdentified?: T;
+        patternTags?: T;
         actionableInsights?: T;
         riskAlerts?: T;
         strengthsHighlighted?: T;

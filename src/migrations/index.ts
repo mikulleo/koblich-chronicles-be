@@ -12,6 +12,7 @@ import * as migration_20260803_090000_update_mindset_model_ids_claude_5 from './
 import * as migration_20260807_110351_add_ticker_exchange_currency from './20260807_110351_add_ticker_exchange_currency';
 import * as migration_20260807_122405_add_ticker_market from './20260807_122405_add_ticker_market';
 import * as migration_20260814_100000_add_pattern_tags_to_evaluations from './20260814_100000_add_pattern_tags_to_evaluations';
+import * as migration_20260824_100000_add_break_even_secured_to_trades from './20260824_100000_add_break_even_secured_to_trades';
 
 export const migrations = [
   {
@@ -83,5 +84,10 @@ export const migrations = [
     up: migration_20260814_100000_add_pattern_tags_to_evaluations.up,
     down: migration_20260814_100000_add_pattern_tags_to_evaluations.down,
     name: '20260814_100000_add_pattern_tags_to_evaluations',
+  },
+  {
+    up: migration_20260824_100000_add_break_even_secured_to_trades.up,
+    down: migration_20260824_100000_add_break_even_secured_to_trades.down,
+    name: '20260824_100000_add_break_even_secured_to_trades',
   },
 ];

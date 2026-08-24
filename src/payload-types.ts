@@ -1129,6 +1129,10 @@ export interface Trade {
    */
   status: 'open' | 'closed' | 'partial';
   /**
+   * Partials booked and/or the stop raised far enough that being stopped out now is break-even or better. Live positions only — cleared automatically once the trade is fully exited.
+   */
+  breakEvenSecured?: boolean | null;
+  /**
    * Trade notes and rationale
    */
   notes?: string | null;
@@ -2564,6 +2568,7 @@ export interface TradesSelect<T extends boolean = true> {
         id?: T;
       };
   status?: T;
+  breakEvenSecured?: T;
   notes?: T;
   riskAmount?: T;
   riskPercent?: T;

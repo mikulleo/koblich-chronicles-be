@@ -79,7 +79,15 @@ interface TradeStats {
 export const Trades: CollectionConfig = {
   slug: 'trades',
   admin: {
-    defaultColumns: ['ticker', 'type', 'entryDate', 'status', 'profitLossPercent', 'rRatio'],
+    defaultColumns: [
+      'ticker',
+      'type',
+      'entryDate',
+      'status',
+      'breakEvenSecured',
+      'profitLossPercent',
+      'rRatio',
+    ],
     useAsTitle: 'id',
     group: 'Trading',
     listSearchableFields: ['ticker.symbol', 'notes'],
@@ -409,6 +417,40 @@ export const Trades: CollectionConfig = {
 
             // Default or manually set value
             return value || 'open'
+          },
+        ],
+      },
+    },
+    {
+      name: 'breakEvenSecured',
+      label: 'Break-Even Secured 🥇',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description:
+          'Partials booked and/or the stop raised far enough that being stopped out now is break-even or better. Live positions only — cleared automatically once the trade is fully exited.',
+        condition: (data) => data?.status !== 'closed',
+      },
+      hooks: {
+        beforeChange: [
+          ({ value, siblingData }) => {
+            // Break-even protection only means something while shares are still on.
+            // Mirrors the status field's exits math so the flag drops in the same
+            // save that closes the trade, rather than lingering as a stale medal.
+            if (siblingData.exits && siblingData.exits.length > 0 && siblingData.shares) {
+              const totalSharesExited = siblingData.exits.reduce(
+                (sum: number, exit: ExitRecord) => sum + (parseFloat(String(exit.shares)) || 0),
+                0,
+              )
+
+              if (totalSharesExited >= siblingData.shares) {
+                return false
+              }
+            }
+
+            return value ?? false
           },
         ],
       },

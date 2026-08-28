@@ -8,6 +8,25 @@ import { notifyOnMentalCheckIn } from '../hooks/notifyOnMentalCheckIn'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCollection = any
 
+/**
+ * Narrow a check-in query to a date window. Both bounds are inclusive and are
+ * expected as bare `YYYY-MM-DD` strings; the end bound is pushed to the end of
+ * that day so check-ins stored with a time component are not dropped.
+ */
+const withDateRange = (
+  where: Where,
+  startDate: string | null,
+  endDate: string | null,
+): Where => {
+  const range: Record<string, string> = {}
+  if (startDate) range.greater_than_equal = startDate
+  if (endDate) {
+    range.less_than_equal = /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? `${endDate}T23:59:59.999Z` : endDate
+  }
+  if (Object.keys(range).length === 0) return where
+  return { ...where, date: { ...((where.date as object) || {}), ...range } }
+}
+
 export const MentalCheckIns: CollectionConfig = {
   slug: 'mental-check-ins',
   admin: {
@@ -467,9 +486,15 @@ export const MentalCheckIns: CollectionConfig = {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        // Optional analysis window — every aggregate below (recurring patterns,
+        // correlations, trends, averages) is computed over just these days.
+        const insightsUrl = new URL(req.url || '', 'http://localhost')
+        const requestedStart = insightsUrl.searchParams.get('startDate')
+        const requestedEnd = insightsUrl.searchParams.get('endDate')
+
         const checkIns = await req.payload.find({
           collection: 'mental-check-ins' as AnyCollection,
-          where: { user: { equals: req.user.id } },
+          where: withDateRange({ user: { equals: req.user.id } }, requestedStart, requestedEnd),
           sort: '-date',
           limit: 365,
           depth: 0,
@@ -477,14 +502,19 @@ export const MentalCheckIns: CollectionConfig = {
 
         const docs = checkIns.docs as AnyCollection[]
         if (docs.length < 2) {
-          return Response.json({ error: 'Need at least 2 check-ins for insights' }, { status: 400 })
+          return Response.json(
+            { error: 'Need at least 2 check-ins for insights', totalDays: docs.length },
+            { status: 400 },
+          )
         }
 
         const completeDocs = docs.filter(
           (d) => d.preMarket?.completedAt && d.postMarket?.completedAt,
         )
 
-        // ===== TODAY'S INSIGHTS =====
+        // ===== LATEST DAY'S INSIGHTS =====
+        // Docs are sorted newest-first, so this is today when the window is
+        // open-ended, and the last day of the window when one was requested.
         const today = docs[0]
         const todayInsights: { strengths: string[]; issues: string[] } = { strengths: [], issues: [] }
 
@@ -815,15 +845,7 @@ export const MentalCheckIns: CollectionConfig = {
         const startDate = url.searchParams.get('startDate')
         const endDate = url.searchParams.get('endDate')
 
-        const where: Where = {
-          user: { equals: req.user.id },
-        }
-        if (startDate) {
-          where['date'] = { ...(where['date'] as object || {}), greater_than_equal: startDate }
-        }
-        if (endDate) {
-          where['date'] = { ...(where['date'] as object || {}), less_than_equal: endDate }
-        }
+        const where: Where = withDateRange({ user: { equals: req.user.id } }, startDate, endDate)
 
         const checkIns = await req.payload.find({
           collection: 'mental-check-ins' as AnyCollection,

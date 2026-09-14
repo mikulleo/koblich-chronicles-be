@@ -442,7 +442,8 @@ export const MindsetEvaluations: CollectionConfig = {
             depth: 0,
           })
 
-          // Fetch recent journal entries
+          // Fetch journal entries for the range. A weekly summary must reflect
+          // every note written that week, not just pre/post-market check-ins.
           const recentJournals = await req.payload.find({
             collection: 'mindset-journal' as AnyCollection,
             overrideAccess: true,
@@ -454,7 +455,7 @@ export const MindsetEvaluations: CollectionConfig = {
               },
             },
             sort: '-date',
-            limit: 10,
+            limit: evaluationType === 'weekly_summary' ? 50 : 10,
             depth: 0,
           })
 
@@ -903,10 +904,17 @@ function buildUserPrompt(
 
   // Journal entries
   if (journals.length > 0) {
-    sections.push(`\n## Recent Journal Entries`)
+    sections.push(
+      evaluationType === 'weekly_summary'
+        ? `\n## Journal Entries This Week (${journals.length})`
+        : `\n## Recent Journal Entries`,
+    )
     for (const j of journals) {
       const date = j.date?.split('T')[0] || 'unknown'
       sections.push(`- ${date} (${j.entryType}): ${j.title}`)
+      if (j.linkedTraps?.length > 0) {
+        sections.push(`  Linked traps: ${j.linkedTraps.join(', ')}`)
+      }
       if (j.freeContent) {
         sections.push(`  Content: ${j.freeContent.slice(0, 500)}`)
       }

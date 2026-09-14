@@ -399,8 +399,26 @@ export const MentalCheckIns: CollectionConfig = {
           depth: 0,
         })
 
+        // Journal entries written during the same week. The weekly picture is
+        // not just pre/post-market check-ins — free-form journaling for those
+        // days carries reflections that never make it into a check-in.
+        const journals = await req.payload.find({
+          collection: 'mindset-journal' as AnyCollection,
+          where: {
+            user: { equals: req.user.id },
+            date: {
+              greater_than_equal: startDate.toISOString(),
+              less_than_equal: endDate.toISOString(),
+            },
+          },
+          sort: 'date',
+          limit: 50,
+          depth: 0,
+        })
+
         // Aggregate weekly data
         const docs = checkIns.docs as AnyCollection[]
+        const journalDocs = journals.docs as AnyCollection[]
 
         const trapCounts: Record<string, number> = {}
         const behaviorCounts: Record<string, number> = {}
@@ -451,6 +469,28 @@ export const MentalCheckIns: CollectionConfig = {
           }
         }
 
+        // Aggregate journal data for the week
+        const journalTypeCounts: Record<string, number> = {}
+        const journalTrapCounts: Record<string, number> = {}
+        const journalDays = new Set<string>()
+
+        for (const j of journalDocs) {
+          const day = typeof j.date === 'string' ? j.date.split('T')[0] : undefined
+          if (day) journalDays.add(day)
+          if (j.entryType) {
+            journalTypeCounts[j.entryType] = (journalTypeCounts[j.entryType] || 0) + 1
+          }
+          for (const trap of j.linkedTraps || []) {
+            journalTrapCounts[trap] = (journalTrapCounts[trap] || 0) + 1
+          }
+        }
+
+        // Traps surfaced anywhere this week — check-ins or journal entries.
+        const combinedTrapCounts: Record<string, number> = { ...trapCounts }
+        for (const [trap, count] of Object.entries(journalTrapCounts)) {
+          combinedTrapCounts[trap] = (combinedTrapCounts[trap] || 0) + count
+        }
+
         return Response.json({
           weekStart,
           weekEnd: endDate.toISOString().split('T')[0],
@@ -475,6 +515,24 @@ export const MentalCheckIns: CollectionConfig = {
             traps: doc.postMarket?.actualTraps || [],
             analysis: doc.analysis,
           })),
+          journalTrapCounts,
+          combinedTrapCounts,
+          journal: {
+            count: journals.totalDocs,
+            daysWithEntries: journalDays.size,
+            typeCounts: journalTypeCounts,
+            entries: journalDocs.map((j) => ({
+              id: j.id,
+              date: j.date,
+              entryType: j.entryType,
+              title: j.title,
+              freeContent: j.freeContent || null,
+              linkedTraps: j.linkedTraps || [],
+              answeredPrompts: (j.guidedPrompts || [])
+                .filter((gp: AnyCollection) => gp.response?.trim())
+                .map((gp: AnyCollection) => ({ prompt: gp.prompt, response: gp.response })),
+            })),
+          },
         })
       },
     },

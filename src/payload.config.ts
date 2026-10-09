@@ -33,6 +33,7 @@ import { plugins } from '@/plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
 import { lexicalEditor } from '@payloadcms/richtext-lexical' // Claude add
 import { getServerSideURL } from '@/utilities/getURL'
+import { startTradeStatsScheduler } from '@/utilities/tradeStats'
 
 // Import admin customizations
 //import { createStatsPage } from './admin/stats';
@@ -133,6 +134,10 @@ export default buildConfig({
     headers: ['Content-Range', 'X-Total-Count'],
   },
   globals: [Header, Footer, MindsetConfig],
+  onInit: async (payload) => {
+    // Daily 10:00 (Prague) refresh of the trade statistics snapshot
+    startTradeStatsScheduler(payload)
+  },
   /*meta: {
     titleSuffix: '- Koblich Chronicles',
     favicon: '/assets/favicon.ico',

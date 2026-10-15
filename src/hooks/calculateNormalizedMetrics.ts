@@ -17,8 +17,8 @@ export const calculateNormalizedMetricsHook: CollectionBeforeChangeHook = async 
     const normalizationFactor = data.positionSize / targetPositionSize;
     data.normalizationFactor = parseFloat(normalizationFactor.toFixed(4));
 
-    // Don't proceed if we don't have profit/loss data
-    if (!data.profitLossAmount || !data.profitLossPercent) {
+    // Don't proceed if we don't have profit/loss data (0 is valid — a break-even exit)
+    if (data.profitLossAmount == null || data.profitLossPercent == null) {
       return data;
     }
 

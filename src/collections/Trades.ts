@@ -3,6 +3,7 @@ import { calculateTradeMetricsHook } from '../hooks/calculateTradeMetrics'
 import { updateTickerTradeStatsHook } from '../hooks/updateTickerTradeStats'
 import { calculateCurrentMetricsHook } from '../hooks/calculateCurrentMetrics'
 import { calculateNormalizedMetricsHook } from '../hooks/calculateNormalizedMetrics'
+import { deriveTradeStatus, prepareTradeDataHook } from '../hooks/prepareTradeData'
 import { updateTickerTradeStatsAfterDeleteHook } from '../hooks/updateTickerTradeStatsAfterDelete'
 import { Where } from 'payload'
 import {
@@ -364,25 +365,9 @@ export const Trades: CollectionConfig = {
       },
       hooks: {
         beforeChange: [
-          ({ value, siblingData }) => {
-            // Auto-calculate status based on exits
-            if (siblingData.exits && siblingData.exits.length > 0) {
-              // Calculate total shares exited
-              const totalSharesExited = siblingData.exits.reduce(
-                (sum: number, exit: ExitRecord) => sum + (parseFloat(String(exit.shares)) || 0),
-                0,
-              )
-
-              if (totalSharesExited >= siblingData.shares) {
-                return 'closed'
-              } else if (totalSharesExited > 0) {
-                return 'partial'
-              }
-            }
-
-            // Default or manually set value
-            return value || 'open'
-          },
+          // Auto-calculate status based on exits (prepareTradeDataHook applies the same rule
+          // earlier so the collection-level metric hooks already see the new status)
+          ({ value, siblingData }) => deriveTradeStatus(siblingData.exits, siblingData.shares, value),
         ],
       },
     },
@@ -614,6 +599,7 @@ export const Trades: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
+      prepareTradeDataHook,
       calculateTradeMetricsHook,
       calculateCurrentMetricsHook,
       calculateNormalizedMetricsHook,
@@ -660,6 +646,17 @@ export const Trades: CollectionConfig = {
           console.error('Error calculating trade stats:', error)
           return Response.json({ message: 'Error calculating trade statistics' }, { status: 500 })
         }
+      },
+    },
+    // Drops the snapshot so the next stats request rebuilds it. For writes made outside this
+    // server process (e.g. the chart importer script), whose hooks can't reach this cache.
+    {
+      path: '/stats/refresh',
+      method: 'post',
+      handler: async (req: PayloadRequest) => {
+        if (!req.user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        invalidateTradeStatsSnapshot()
+        return Response.json({ ok: true })
       },
     },
     // Precomputed yearly + monthly stats for the "By Time Period" table, in one response

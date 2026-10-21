@@ -440,11 +440,19 @@ export function computeStatsFromSnapshot(
   return computeStats(filterSnapshotTrades(snapshot, query), query)
 }
 
-// Minimal per-trade fields the statistics page needs (total P/L % sum, histogram)
+// Minimal per-trade fields the statistics page needs (total P/L % sum, histogram, advanced stats).
+// The statistics page is public, so never add dollar amounts (P/L $, risk $, position size $) here.
 export interface StatsTradeRow {
   id: string | number
   status: string
   profitLossPercent: number | null
+  rRatio: number | null
+  daysHeld: number | null
+  entryDate: string | null
+  // Date of the last exit — the date the result was realized
+  closeDate: string
+  // Position size relative to the target position size (1 = one full position)
+  normalizationFactor: number | null
   normalizedMetrics?: { profitLossPercent: number | null }
 }
 
@@ -453,6 +461,11 @@ export function toStatsTradeRow(doc: any): StatsTradeRow {
     id: doc.id,
     status: doc.status,
     profitLossPercent: doc.profitLossPercent ?? null,
+    rRatio: doc.rRatio ?? null,
+    daysHeld: doc.daysHeld ?? null,
+    entryDate: doc.entryDate ?? null,
+    closeDate: getCompletionDate(doc).toISOString(),
+    normalizationFactor: doc.normalizationFactor ?? null,
     ...(doc.normalizedMetrics
       ? { normalizedMetrics: { profitLossPercent: doc.normalizedMetrics.profitLossPercent ?? null } }
       : {}),

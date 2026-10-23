@@ -4,10 +4,11 @@ FROM node:22-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
+# Must match "packageManager" in package.json, otherwise corepack re-downloads pnpm in every stage
 RUN corepack enable pnpm && \
-    (corepack prepare pnpm@9.15.4 --activate || \
-     (sleep 5 && corepack prepare pnpm@9.15.4 --activate) || \
-     (sleep 10 && corepack prepare pnpm@9.15.4 --activate))
+    (corepack prepare pnpm@10.3.0 --activate || \
+     (sleep 5 && corepack prepare pnpm@10.3.0 --activate) || \
+     (sleep 10 && corepack prepare pnpm@10.3.0 --activate))
 
 # --- Dependencies ---
 FROM base AS deps
@@ -40,6 +41,7 @@ ENV PAYLOAD_PUBLIC_SERVER_URL=$PAYLOAD_PUBLIC_SERVER_URL
 ENV PAYLOAD_UPLOADS_DIR=$PAYLOAD_UPLOADS_DIR
 ENV PAYLOAD_CONFIG_PATH=src/payload.config.ts
 ENV CI=false
+ENV NODE_ENV=production
 
 RUN pnpm exec payload generate:types
 RUN pnpm run build:prod

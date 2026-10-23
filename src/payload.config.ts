@@ -106,7 +106,10 @@ export default buildConfig({
             pass: process.env.SMTP_PASS,
           },
         })
-      : undefined, // Falls back to ethereal test account in dev when SMTP is not configured
+      : process.env.NODE_ENV === 'production'
+        ? // No network call to api.nodemailer.com during Docker builds; emails are logged, not sent
+          nodemailer.createTransport({ jsonTransport: true })
+        : undefined, // Falls back to ethereal test account in dev when SMTP is not configured
   }),
   db: postgresAdapter({
     pool: {

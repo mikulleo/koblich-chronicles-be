@@ -1,3 +1,4 @@
+import { isActionJournalUser } from '../utilities/actionJournal'
 import { CollectionBeforeChangeHook } from 'payload'
 
 const GUIDED_PROMPTS: Record<string, string[]> = {
@@ -34,6 +35,11 @@ const GUIDED_PROMPTS: Record<string, string[]> = {
     'What emotional traps did I fall into most?',
     'What is my #1 focus for next week?',
   ],
+  coaching_session_summary: [
+    'What landed in the session?',
+    'What am I working on?',
+    'What did I commit to?',
+  ],
   rule_violation_review: [
     'Which rule did I violate?',
     'What was the context (market, personal state)?',
@@ -43,18 +49,31 @@ const GUIDED_PROMPTS: Record<string, string[]> = {
   ],
 }
 
+// 3-3-1 Action Journal wording for Action Journal users (see utilities/actionJournal.ts).
+// Must match the prompt labels the FE writes, so mirrored entries look the same.
+const ACTION_JOURNAL_PROMPTS: Record<string, string[]> = {
+  post_market_reflection: [
+    '3 Things I Did Well',
+    '3 Things for Improvement',
+    '1 Action Step Forward',
+    'Market & week context',
+  ],
+}
+
 /**
  * Auto-fills guided prompts based on entry type on create.
  */
-export const populateJournalPrompts: CollectionBeforeChangeHook = ({ data, operation }) => {
+export const populateJournalPrompts: CollectionBeforeChangeHook = ({ data, operation, req }) => {
   if (operation !== 'create') return data
 
   const entryType = data.entryType
-  if (!entryType || !GUIDED_PROMPTS[entryType]) return data
+  const prompts =
+    (isActionJournalUser(req.user) && ACTION_JOURNAL_PROMPTS[entryType]) || GUIDED_PROMPTS[entryType]
+  if (!entryType || !prompts) return data
 
   // Only populate if guidedPrompts is empty or not set
   if (!data.guidedPrompts || data.guidedPrompts.length === 0) {
-    data.guidedPrompts = GUIDED_PROMPTS[entryType].map((prompt) => ({
+    data.guidedPrompts = prompts.map((prompt) => ({
       prompt,
       response: '',
     }))

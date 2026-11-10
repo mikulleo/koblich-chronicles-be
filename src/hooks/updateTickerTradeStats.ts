@@ -38,6 +38,7 @@ export const updateTickerTradeStatsHook: CollectionAfterChangeHook = async ({ do
       },
       limit: 0, // Just need the count
       depth: 0,
+      req,
     });
 
     // Calculate total profit/loss for this ticker
@@ -56,6 +57,7 @@ export const updateTickerTradeStatsHook: CollectionAfterChangeHook = async ({ do
       },
       limit: 500,
       depth: 0, // No need to populate relationships for P/L calculation
+      req,
     });
     
     let totalProfitLoss = 0;
@@ -78,6 +80,7 @@ export const updateTickerTradeStatsHook: CollectionAfterChangeHook = async ({ do
         profitLoss: parseFloat(totalProfitLoss.toFixed(2)),
       },
       depth: 0, // Prevent hooks from running on this update
+      req, // Same transaction — otherwise this waits on the lock our own trade insert holds
     });
     
     // Remove this ticker from our processing set

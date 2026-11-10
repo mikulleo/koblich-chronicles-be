@@ -26,6 +26,7 @@ export const updateTickerTradeStatsAfterDeleteHook: CollectionAfterDeleteHook = 
         },
       },
       limit: 0, // Just need the count
+      req,
     })
 
     // Calculate total profit/loss for this ticker
@@ -43,6 +44,7 @@ export const updateTickerTradeStatsAfterDeleteHook: CollectionAfterDeleteHook = 
         },
       },
       limit: 500, // Reasonable limit for calculations
+      req,
     })
 
     let totalProfitLoss = 0
@@ -66,6 +68,7 @@ export const updateTickerTradeStatsAfterDeleteHook: CollectionAfterDeleteHook = 
         profitLoss: parseFloat(totalProfitLoss.toFixed(2)),
       },
       depth: 0, // Prevent hooks from running on this update
+      req,
     })
 
     return doc

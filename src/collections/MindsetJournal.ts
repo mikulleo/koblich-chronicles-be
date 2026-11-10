@@ -3,6 +3,7 @@ import { authenticated } from '../access/authenticated'
 import { userOwned } from '../access/userOwned'
 import { setUserOwner } from '../hooks/setUserOwner'
 import { populateJournalPrompts } from '../hooks/populateJournalPrompts'
+import { normalizeActionJournalField } from '../utilities/actionJournal'
 
 export const MindsetJournal: CollectionConfig = {
   slug: 'mindset-journal',
@@ -53,6 +54,7 @@ export const MindsetJournal: CollectionConfig = {
         { label: 'Trigger Review', value: 'trigger_review' },
         { label: 'Weekly Review', value: 'weekly_review' },
         { label: 'Rule Violation Review', value: 'rule_violation_review' },
+        { label: 'Coaching Session Summary', value: 'coaching_session_summary' },
       ],
       admin: {
         description: 'Type of journal entry',
@@ -88,6 +90,15 @@ export const MindsetJournal: CollectionConfig = {
           },
         },
       ],
+    },
+    {
+      // 3-3-1 Action Journal (Action Journal users, post-market reflections).
+      // Structured source of truth; guidedPrompts carries a mirrored text copy
+      // so the card, weekly review, report and AI prompt keep working.
+      name: 'actionJournal',
+      type: 'json',
+      hooks: { beforeChange: [normalizeActionJournalField] },
+      admin: { description: '3-3-1 Action Journal (structured, with pillar tags)' },
     },
     {
       name: 'freeContent',

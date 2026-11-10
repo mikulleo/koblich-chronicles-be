@@ -4,6 +4,15 @@ import { userOwned } from '../access/userOwned'
 import { setUserOwner } from '../hooks/setUserOwner'
 import { generateMindsetEvaluation } from '../utilities/claudeClient'
 import { PATTERN_CODES, buildPatternTaxonomyPrompt } from '../utilities/mindsetPatterns'
+import {
+  ACTION_JOURNAL_SYSTEM_ADDENDUM,
+  type LastActionStep,
+  findLastActionStep,
+  formatActionJournalForPrompt,
+  isActionJournalUser,
+  sanitizeActionJournal,
+  tallyPillars,
+} from '../utilities/actionJournal'
 import crypto from 'crypto'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -475,13 +484,48 @@ export const MindsetEvaluations: CollectionConfig = {
             depth: 1,
           })
 
+          // 3-3-1 Action Journal users: last action step + latest coaching
+          // session summary (not limited to the lookback window — sessions are
+          // less frequent than check-ins).
+          const actionJournalUser = isActionJournalUser(req.user)
+          let actionJournalContext: ActionJournalPromptContext | undefined
+          if (actionJournalUser) {
+            const [lastActionStep, coachingSessions] = await Promise.all([
+              findLastActionStep(req.payload, req.user.id, dateStr),
+              req.payload.find({
+                collection: 'mindset-journal' as AnyCollection,
+                overrideAccess: true,
+                where: {
+                  user: { equals: req.user.id },
+                  entryType: { equals: 'coaching_session_summary' },
+                  date: { less_than_equal: rangeEnd.toISOString() },
+                },
+                sort: '-date',
+                limit: 1,
+                depth: 0,
+              }),
+            ])
+            actionJournalContext = {
+              lastActionStep,
+              coachingSession: (coachingSessions.docs[0] as AnyCollection) ?? null,
+            }
+          }
+
           // Build data snapshot for hashing
-          const inputData = {
+          const inputData: Record<string, unknown> = {
             checkIn: todayCheckIn || null,
             recentCheckIns: recentCheckIns.docs.map((d: AnyCollection) => d.id),
             journals: recentJournals.docs.map((d: AnyCollection) => d.id),
             discipline: recentDiscipline.docs.map((d: AnyCollection) => d.id),
             evaluationType,
+          }
+          // Only add keys for Action Journal users so everyone else's hashes
+          // (and therefore dedup of existing evaluations) are unchanged.
+          if (actionJournalContext) {
+            inputData.actionJournal = {
+              lastActionStep: actionJournalContext.lastActionStep,
+              coachingSession: actionJournalContext.coachingSession?.id ?? null,
+            }
           }
           const dataHash = computeDataHash(inputData)
 
@@ -523,7 +567,10 @@ export const MindsetEvaluations: CollectionConfig = {
 
           // Build prompts. The taxonomy is appended unconditionally — the output
           // schema requires patternTags, so a custom system prompt must not drop it.
-          const systemPrompt = `${aiConfig.systemPromptOverride || DEFAULT_SYSTEM_PROMPT}\n\n${buildPatternTaxonomyPrompt()}`
+          const basePrompt = `${aiConfig.systemPromptOverride || DEFAULT_SYSTEM_PROMPT}\n\n${buildPatternTaxonomyPrompt()}`
+          const systemPrompt = actionJournalUser
+            ? `${basePrompt}\n\n${ACTION_JOURNAL_SYSTEM_ADDENDUM}`
+            : basePrompt
 
           const userPrompt = buildUserPrompt(
             evaluationType,
@@ -532,6 +579,7 @@ export const MindsetEvaluations: CollectionConfig = {
             recentCheckIns.docs as AnyCollection[],
             recentJournals.docs as AnyCollection[],
             recentDiscipline.docs as AnyCollection[],
+            actionJournalContext,
           )
 
           // Call Claude API
@@ -835,10 +883,19 @@ function formatCheckInDetail(ci: AnyCollection, label: string): string[] {
     }
     if (ci.postMarket.reflections) {
       const r = ci.postMarket.reflections
-      if (r.whatWentWell) lines.push(`- What went well: ${r.whatWentWell}`)
-      if (r.whatWentPoorly) lines.push(`- What went poorly: ${r.whatWentPoorly}`)
-      if (r.lessonsLearned) lines.push(`- Lessons learned: ${r.lessonsLearned}`)
-      if (r.emotionalHighlight) lines.push(`- Emotional highlight: ${r.emotionalHighlight}`)
+      // 3-3-1 Action Journal entries (only written for Action Journal users):
+      // render the structured version; the legacy fields are mirrored copies.
+      const aj = sanitizeActionJournal(r.actionJournal)
+      if (aj) {
+        lines.push(...formatActionJournalForPrompt(aj, '- '))
+        if (r.lessonsLearned) lines.push(`- Lessons learned: ${r.lessonsLearned}`)
+        if (r.emotionalHighlight) lines.push(`- Emotional highlight: ${r.emotionalHighlight}`)
+      } else {
+        if (r.whatWentWell) lines.push(`- What went well: ${r.whatWentWell}`)
+        if (r.whatWentPoorly) lines.push(`- What went poorly: ${r.whatWentPoorly}`)
+        if (r.lessonsLearned) lines.push(`- Lessons learned: ${r.lessonsLearned}`)
+        if (r.emotionalHighlight) lines.push(`- Emotional highlight: ${r.emotionalHighlight}`)
+      }
     }
   }
   if (ci.analysis) {
@@ -860,6 +917,11 @@ function formatCheckInDetail(ci: AnyCollection, label: string): string[] {
   return lines
 }
 
+interface ActionJournalPromptContext {
+  lastActionStep: LastActionStep | null
+  coachingSession: AnyCollection | null
+}
+
 function buildUserPrompt(
   evaluationType: string,
   dateStr: string,
@@ -867,11 +929,40 @@ function buildUserPrompt(
   recentCheckIns: AnyCollection[],
   journals: AnyCollection[],
   disciplineLogs: AnyCollection[],
+  actionJournal?: ActionJournalPromptContext,
 ): string {
   const sections: string[] = []
 
   sections.push(`## Evaluation Type: ${evaluationType}`)
   sections.push(`## Date: ${dateStr}`)
+
+  if (actionJournal) {
+    sections.push(`\n## Last Action Step`)
+    sections.push(
+      actionJournal.lastActionStep
+        ? `- ${actionJournal.lastActionStep.date} (${actionJournal.lastActionStep.source}): ${actionJournal.lastActionStep.text}`
+        : '- None recorded yet',
+    )
+
+    const cs = actionJournal.coachingSession
+    if (cs) {
+      sections.push(`\n## Latest Coaching Session Summary (${cs.date?.split('T')[0] || 'unknown'}): ${cs.title}`)
+      for (const gp of cs.guidedPrompts || []) {
+        if (gp.response) sections.push(`  Q: ${gp.prompt}`, `  A: ${gp.response.slice(0, 600)}`)
+      }
+      if (cs.freeContent) sections.push(`  Notes: ${cs.freeContent.slice(0, 800)}`)
+    }
+
+    const entries = [
+      ...recentCheckIns.map((c) => sanitizeActionJournal(c.postMarket?.reflections?.actionJournal)),
+      ...journals.map((j) => sanitizeActionJournal(j.actionJournal)),
+    ].filter((e): e is NonNullable<typeof e> => !!e)
+    const tally = tallyPillars(entries)
+    if (tally.length > 0) {
+      sections.push(`\n## Pillar Tally (3-3-1 entries in this window)`)
+      sections.push(...tally)
+    }
+  }
 
   if (evaluationType === 'weekly_summary') {
     // Weekly: show all check-ins with full detail
@@ -898,6 +989,10 @@ function buildUserPrompt(
         const traps = ci.postMarket?.actualTraps || []
         const driftPatterns = ci.analysis?.emotionalDrift || []
         sections.push(`- ${date}: adherence=${adherence ?? 'N/A'}%, drift=${drift ?? 'N/A'}, traps=[${traps.join(',')}], driftPatterns=[${driftPatterns.join(',')}]`)
+        const historyAj = actionJournal
+          ? sanitizeActionJournal(ci.postMarket?.reflections?.actionJournal)
+          : null
+        if (historyAj) sections.push(...formatActionJournalForPrompt(historyAj, '  '))
       }
     }
   }
@@ -918,7 +1013,12 @@ function buildUserPrompt(
       if (j.freeContent) {
         sections.push(`  Content: ${j.freeContent.slice(0, 500)}`)
       }
-      if (j.guidedPrompts?.length > 0) {
+      // 3-3-1 entries: guidedPrompts is only a mirrored text copy, so render the
+      // structured version (with pillar tags) instead.
+      const journalAj = sanitizeActionJournal(j.actionJournal)
+      if (journalAj) {
+        sections.push(...formatActionJournalForPrompt(journalAj, '  '))
+      } else if (j.guidedPrompts?.length > 0) {
         for (const gp of j.guidedPrompts) {
           if (gp.response) {
             sections.push(`  Q: ${gp.prompt}`)

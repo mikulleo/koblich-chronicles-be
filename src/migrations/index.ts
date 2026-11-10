@@ -13,6 +13,7 @@ import * as migration_20260807_110351_add_ticker_exchange_currency from './20260
 import * as migration_20260807_122405_add_ticker_market from './20260807_122405_add_ticker_market';
 import * as migration_20260814_100000_add_pattern_tags_to_evaluations from './20260814_100000_add_pattern_tags_to_evaluations';
 import * as migration_20260824_100000_add_break_even_secured_to_trades from './20260824_100000_add_break_even_secured_to_trades';
+import * as migration_20261110_100000_add_action_journal from './20261110_100000_add_action_journal';
 
 export const migrations = [
   {
@@ -89,5 +90,10 @@ export const migrations = [
     up: migration_20260824_100000_add_break_even_secured_to_trades.up,
     down: migration_20260824_100000_add_break_even_secured_to_trades.down,
     name: '20260824_100000_add_break_even_secured_to_trades',
+  },
+  {
+    up: migration_20261110_100000_add_action_journal.up,
+    down: migration_20261110_100000_add_action_journal.down,
+    name: '20261110_100000_add_action_journal',
   },
 ];

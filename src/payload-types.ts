@@ -1370,6 +1370,18 @@ export interface MentalCheckIn {
        * Most significant emotional moment and how you handled it
        */
       emotionalHighlight?: string | null;
+      /**
+       * 3-3-1 Action Journal (structured, with pillar tags)
+       */
+      actionJournal?:
+        | {
+            [k: string]: unknown;
+          }
+        | unknown[]
+        | string
+        | number
+        | boolean
+        | null;
     };
     /**
      * What emotional traps did you actually fall into today?
@@ -1438,7 +1450,8 @@ export interface MindsetJournal {
     | 'mistake_review'
     | 'trigger_review'
     | 'weekly_review'
-    | 'rule_violation_review';
+    | 'rule_violation_review'
+    | 'coaching_session_summary';
   /**
    * Title for this journal entry
    */
@@ -1455,6 +1468,18 @@ export interface MindsetJournal {
         response?: string | null;
         id?: string | null;
       }[]
+    | null;
+  /**
+   * 3-3-1 Action Journal (structured, with pillar tags)
+   */
+  actionJournal?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
     | null;
   /**
    * Free-form journaling content
@@ -2662,6 +2687,7 @@ export interface MentalCheckInsSelect<T extends boolean = true> {
               lessonsLearned?: T;
               tomorrowFocus?: T;
               emotionalHighlight?: T;
+              actionJournal?: T;
             };
         actualTraps?: T;
       };
@@ -2692,6 +2718,7 @@ export interface MindsetJournalSelect<T extends boolean = true> {
         response?: T;
         id?: T;
       };
+  actionJournal?: T;
   freeContent?: T;
   linkedTraps?: T;
   linkedDate?: T;

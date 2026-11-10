@@ -4,6 +4,7 @@ import { userOwned } from '../access/userOwned'
 import { setUserOwner } from '../hooks/setUserOwner'
 import { calculateCheckInAnalysis } from '../hooks/calculateCheckInAnalysis'
 import { notifyOnMentalCheckIn } from '../hooks/notifyOnMentalCheckIn'
+import { findLastActionStep, normalizeActionJournalField } from '../utilities/actionJournal'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCollection = any
@@ -289,6 +290,16 @@ export const MentalCheckIns: CollectionConfig = {
               type: 'textarea',
               admin: { description: 'Most significant emotional moment and how you handled it' },
             },
+            {
+              // 3-3-1 Action Journal (Action Journal users only). Structured copy of
+              // the reflection: { didWell[3], improvement[3] of { text, pillar },
+              // actionStep, context }. The FE mirrors didWell/improvement/actionStep
+              // into whatWentWell/whatWentPoorly/tomorrowFocus so legacy readers work.
+              name: 'actionJournal',
+              type: 'json',
+              hooks: { beforeChange: [normalizeActionJournalField] },
+              admin: { description: '3-3-1 Action Journal (structured, with pillar tags)' },
+            },
           ],
         },
         {
@@ -365,6 +376,24 @@ export const MentalCheckIns: CollectionConfig = {
     },
   ],
   endpoints: [
+    // GET /last-action-step?before=YYYY-MM-DD — most recent 3-3-1 action step
+    // (check-in or journal) strictly before the given date.
+    {
+      path: '/last-action-step',
+      method: 'get',
+      handler: async (req: PayloadRequest) => {
+        if (!req.user) {
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+        const url = new URL(req.url || '', 'http://localhost')
+        const before = url.searchParams.get('before') || new Date().toISOString().split('T')[0]!
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(before)) {
+          return Response.json({ error: 'before must be YYYY-MM-DD' }, { status: 400 })
+        }
+        const lastActionStep = await findLastActionStep(req.payload, req.user.id, before)
+        return Response.json({ lastActionStep })
+      },
+    },
     {
       path: '/weekly-summary',
       method: 'get',

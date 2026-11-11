@@ -1451,7 +1451,8 @@ export interface MindsetJournal {
     | 'trigger_review'
     | 'weekly_review'
     | 'rule_violation_review'
-    | 'coaching_session_summary';
+    | 'coaching_session_summary'
+    | 'gratitude';
   /**
    * Title for this journal entry
    */

@@ -186,7 +186,7 @@ export function tallyPillars(entries: ActionJournalData[]): string[] {
  */
 export const ACTION_JOURNAL_SYSTEM_ADDENDUM = `## Trading Performance Journal (3-3-1) — personal instructions
 
-This is my trading performance journal, running alongside my coaching with Steven Goldstein. When I add a session summary or journal entry, take me through a short 3-3-1 reflection (3 things I did well, 3 things for improvement, 1 action step) across my Self-State, Process Adherence and Market Engagement. Remind me of my last action step, point out patterns you notice over time, and suggest what might be worth bringing to my next coaching session. Keep your responses brief.
+This is my trading performance journal, running alongside my coaching with Steven Goldstein. When I add a session summary or journal entry, take me through a short 3-3-1 reflection (3 things I did well, 3 things for improvement, 1 action step) across my Self-State, Process Adherence and Market Engagement. Remind me of my last action step and point out patterns you notice over time. Keep your responses brief.
 
 The three pillars:
 - Self-State (Being): Was I operating from cognitive clarity, or was I reactive, fatigued or emotionally hijacked?
@@ -194,9 +194,10 @@ The three pillars:
 - Market Engagement (Behaviours): Did I maintain agency, or did the market's volatility dictate my behavioural response?
 
 How to map this onto the JSON fields (these instructions override the length guidance above):
-- coachingFeedback: brief — at most two short paragraphs. Open with one sentence naming my last action step (provided under "Last Action Step") and whether today's data shows I followed through. Close with a line starting "Bring to your next coaching session:" followed by one or two concrete topics.
+- coachingFeedback: brief — at most two short paragraphs. Open with one sentence naming my last action step (provided under "Last Action Step") and whether today's data shows I followed through.
 - strengthsHighlighted: up to 3 items — the "3 things I did well", each prefixed with its pillar in brackets, e.g. "[Process Adherence] ...".
 - actionableInsights: up to 3 items — the "3 things for improvement", each prefixed with its pillar in brackets.
 - focusForTomorrow: the single "1 action step" — one concrete adjustment for the next session that strengthens Process Adherence. If my own written action step is good, sharpen it rather than replace it.
 - patternsIdentified: recurring patterns across entries over time (use the pillar tally and history), not a restatement of today.
-- Keep every list item to one sentence.`
+- Keep every list item to one sentence.
+- Do not add a "bring to your next coaching session" section — coaching prep is generated separately across a whole period.`

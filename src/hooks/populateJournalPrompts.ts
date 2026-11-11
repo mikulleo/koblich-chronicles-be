@@ -40,6 +40,18 @@ const GUIDED_PROMPTS: Record<string, string[]> = {
     'What am I working on?',
     'What did I commit to?',
   ],
+  // Gratitude practice, drawn from Robert Emmons (Thanks!: specific beats
+  // general, people beat things), Martin Seligman's "Three Good Things"
+  // (Flourish: name it *and* why it happened), The Five Minute Journal, the
+  // Stoic "obstacle is the way" reframe and mental subtraction.
+  // Keep in sync with the FE copy in journal-entry-form.tsx.
+  gratitude: [
+    '3 things I am grateful for today (be specific, not general)',
+    'A person I am grateful for: what did they do, and what difference did it make?',
+    '3 good things that happened, and why did each one happen? What was my part in it?',
+    'A setback, loss or mistake I can be grateful for: what is it teaching me?',
+    'Something I usually take for granted: what would my life or trading look like without it?',
+  ],
   rule_violation_review: [
     'Which rule did I violate?',
     'What was the context (market, personal state)?',

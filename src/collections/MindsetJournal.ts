@@ -55,6 +55,7 @@ export const MindsetJournal: CollectionConfig = {
         { label: 'Weekly Review', value: 'weekly_review' },
         { label: 'Rule Violation Review', value: 'rule_violation_review' },
         { label: 'Coaching Session Summary', value: 'coaching_session_summary' },
+        { label: 'Gratitude', value: 'gratitude' },
       ],
       admin: {
         description: 'Type of journal entry',

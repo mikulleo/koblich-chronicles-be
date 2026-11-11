@@ -13,6 +13,7 @@ import {
   sanitizeActionJournal,
   tallyPillars,
 } from '../utilities/actionJournal'
+import { coachingPrepHandler } from '../utilities/coachingPrep'
 import crypto from 'crypto'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -683,6 +684,13 @@ export const MindsetEvaluations: CollectionConfig = {
           )
         }
       },
+    },
+    // POST /coaching-prep — one "bring to your next coaching session" brief
+    // across a whole period (Action Journal users only)
+    {
+      path: '/coaching-prep',
+      method: 'post',
+      handler: coachingPrepHandler,
     },
     // GET /latest — return most recent evaluation for a date
     {

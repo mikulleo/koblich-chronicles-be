@@ -14,6 +14,7 @@ import * as migration_20260807_122405_add_ticker_market from './20260807_122405_
 import * as migration_20260814_100000_add_pattern_tags_to_evaluations from './20260814_100000_add_pattern_tags_to_evaluations';
 import * as migration_20260824_100000_add_break_even_secured_to_trades from './20260824_100000_add_break_even_secured_to_trades';
 import * as migration_20261110_100000_add_action_journal from './20261110_100000_add_action_journal';
+import * as migration_20261111_100000_add_gratitude_journal from './20261111_100000_add_gratitude_journal';
 
 export const migrations = [
   {
@@ -95,5 +96,10 @@ export const migrations = [
     up: migration_20261110_100000_add_action_journal.up,
     down: migration_20261110_100000_add_action_journal.down,
     name: '20261110_100000_add_action_journal',
+  },
+  {
+    up: migration_20261111_100000_add_gratitude_journal.up,
+    down: migration_20261111_100000_add_gratitude_journal.down,
+    name: '20261111_100000_add_gratitude_journal',
   },
 ];

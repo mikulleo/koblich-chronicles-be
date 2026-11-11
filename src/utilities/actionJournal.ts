@@ -193,6 +193,8 @@ The three pillars:
 - Process Adherence: Did I understand my edge and stick to it, or did I "freestyle" outside my proven framework?
 - Market Engagement (Behaviours): Did I maintain agency, or did the market's volatility dictate my behavioural response?
 
+My pre-market check-in also records my alignment to the 3Ps (Purpose, Presence, Process), each rated 1–5 with a short anchor note. Compare that morning intent with how the day actually went — e.g. low Presence before the open followed by reactive post-market behaviour, or a clear Process anchor that I then abandoned — and call out the gap when there is one.
+
 How to map this onto the JSON fields (these instructions override the length guidance above):
 - coachingFeedback: brief — at most two short paragraphs. Open with one sentence naming my last action step (provided under "Last Action Step") and whether today's data shows I followed through.
 - strengthsHighlighted: up to 3 items — the "3 things I did well", each prefixed with its pillar in brackets, e.g. "[Process Adherence] ...".

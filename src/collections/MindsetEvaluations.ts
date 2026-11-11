@@ -14,6 +14,7 @@ import {
   tallyPillars,
 } from '../utilities/actionJournal'
 import { coachingPrepHandler } from '../utilities/coachingPrep'
+import { formatThreePsForPrompt } from '../utilities/threePs'
 import crypto from 'crypto'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -873,6 +874,10 @@ function formatCheckInDetail(ci: AnyCollection, label: string): string[] {
     }
     if (ci.preMarket.biggestRisk) {
       lines.push(`Predicted Biggest Risk: ${ci.preMarket.biggestRisk}`)
+    }
+    lines.push(...formatThreePsForPrompt(ci.preMarket.threePs))
+    if (ci.preMarket.notes?.trim()) {
+      lines.push(`Pre-market notes: ${ci.preMarket.notes.trim()}`)
     }
   }
   if (ci.postMarket?.ratings) {

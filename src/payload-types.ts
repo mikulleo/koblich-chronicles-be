@@ -1308,6 +1308,22 @@ export interface MentalCheckIn {
           | 'impatience'
         )
       | null;
+    /**
+     * Free-form pre-market notes (game plan, thoughts, anything on your mind)
+     */
+    notes?: string | null;
+    /**
+     * 3Ps alignment — Purpose, Presence, Process (Steven Goldstein)
+     */
+    threePs?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
   };
   /**
    * Post-market performance review
@@ -2660,6 +2676,8 @@ export interface MentalCheckInsSelect<T extends boolean = true> {
         contextFlags?: T;
         intentions?: T;
         biggestRisk?: T;
+        notes?: T;
+        threePs?: T;
       };
   postMarket?:
     | T

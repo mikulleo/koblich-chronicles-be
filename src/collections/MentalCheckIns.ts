@@ -5,6 +5,7 @@ import { setUserOwner } from '../hooks/setUserOwner'
 import { calculateCheckInAnalysis } from '../hooks/calculateCheckInAnalysis'
 import { notifyOnMentalCheckIn } from '../hooks/notifyOnMentalCheckIn'
 import { findLastActionStep, normalizeActionJournalField } from '../utilities/actionJournal'
+import { normalizeThreePsField } from '../utilities/threePs'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCollection = any
@@ -186,6 +187,20 @@ export const MentalCheckIns: CollectionConfig = {
           admin: {
             description: 'What is your biggest risk today?',
           },
+        },
+        {
+          name: 'notes',
+          type: 'textarea',
+          maxLength: 5000,
+          admin: { description: 'Free-form pre-market notes (game plan, thoughts, anything on your mind)' },
+        },
+        {
+          // 3Ps alignment (Action Journal users only): { purpose, presence,
+          // process } each { rating 1–5 | null, note }. See utilities/threePs.ts.
+          name: 'threePs',
+          type: 'json',
+          hooks: { beforeChange: [normalizeThreePsField] },
+          admin: { description: '3Ps alignment — Purpose, Presence, Process (Steven Goldstein)' },
         },
       ],
     },

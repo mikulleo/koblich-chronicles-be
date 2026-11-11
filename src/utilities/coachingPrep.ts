@@ -1,6 +1,7 @@
 import type { PayloadRequest } from 'payload'
 import { generateMindsetEvaluation } from './claudeClient'
 import { PATTERN_TAXONOMY } from './mindsetPatterns'
+import { formatThreePsForPrompt } from './threePs'
 import {
   findLastActionStep,
   formatActionJournalForPrompt,
@@ -165,6 +166,11 @@ function formatCheckIn(ci: AnyCollection): string[] {
     if (a.riskPredictionAccuracy) parts.push(`risk prediction ${a.riskPredictionAccuracy}`)
   }
   lines.push(parts.join(' | '))
+
+  if (pre?.completedAt) {
+    lines.push(...formatThreePsForPrompt(pre.threePs, '    '))
+    if (pre.notes?.trim()) lines.push(`    Pre-market notes: ${clip(pre.notes, 400)}`)
+  }
 
   const r = post?.reflections
   if (r) {
